@@ -2,7 +2,7 @@
   "name": "vscord-rtm",
   "displayName": "RTM Script Helper (RealTrainMod)",
   "description": "RealTrainMod の ES5(Rhino)スクリプトを書きやすくする補完・構文チェック拡張。1.12.2 / 1.7.10 を左サイドバーで切替。",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "publisher": "325-Sunnygo",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -78,6 +78,17 @@
           "default": true,
           "description": "true(既定)のとき、RTMらしい .js を開いたら自動で『RTM Script』言語モードに切替える。これで VSCode 標準の DOM/ブラウザAPI候補(RTCPeerConnection 等)が出なくなり、候補がRTM中心になる。元に戻すには右下の言語表示か『RTM: 通常のJavaScriptに戻す』。"
         }
+      }
+    },
+    "configurationDefaults": {
+      "[rtmjs]": {
+        "editor.quickSuggestions": {
+          "other": true,
+          "comments": false,
+          "strings": true
+        },
+        "editor.suggestOnTriggerCharacters": true,
+        "editor.wordBasedSuggestions": "matchingDocuments"
       }
     },
     "commands": [

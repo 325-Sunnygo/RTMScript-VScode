@@ -158,7 +158,7 @@ function activate(context) {
   // 自動切替の対象は「中身が明らかに RTM」のものに限定(scriptsフォルダ名だけでは切替えない)。
   function contentLooksRtm(document) {
     const head = document.getText().slice(0, 4000);
-    return /\bimportPackage\s*\(|\bPackages\.|\brenderer\b|registerParts\b|function\s+(onUpdate|render|init)\s*\(/.test(head);
+    return /\bimportPackage\s*\(|\bPackages\.|\brenderer\b|registerParts\b|function\s+(onUpdate|render|init)\s*\(|\brenderClass\b|\bsoundLibPath\b|jp\.ngt\.(rtm|ngtlib)|\/\/\s*include\s*</.test(head);
   }
   const autoSwitched = new Set(); // 自動切替済みURI(戻した後に再切替しないため)
   async function maybeAutoSwitch(document) {

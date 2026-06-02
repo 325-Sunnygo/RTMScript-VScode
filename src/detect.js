@@ -6,7 +6,7 @@
  */
 
 // 中身に RTM 特有の記述があるか
-const RTM_CONTENT = /\bimportPackage\s*\(|\bPackages\.|\brenderer\b|\bscriptExecuter\b|registerParts\b|function\s+(onUpdate|render|init)\s*\(/;
+const RTM_CONTENT = /\bimportPackage\s*\(|\bPackages\.|\brenderer\b|\bscriptExecuter\b|registerParts\b|function\s+(onUpdate|render|init)\s*\(|\brenderClass\b|\bsoundLibPath\b|jp\.ngt\.(rtm|ngtlib)|\/\/\s*include\s*</;
 // RTM モデルパックのスクリプト配置(assets/.../scripts)
 const SCRIPTS_DIR = /\/scripts\//i;
 // RTM スクリプトでよく使われるファイル名

@@ -134,6 +134,8 @@ ok('detect: scripts フォルダ配下 -> RTM', looksLikeRtmScript('var x = 1;',
 ok('detect: Render_xxx.js -> RTM', looksLikeRtmScript('var x = 1;', '/x/Render_sd8200_1.js'));
 ok('detect: 普通のJS(modernなapp.js) -> 非RTM', !looksLikeRtmScript('const app = () => { let n = 1; };', '/proj/src/app.js'));
 ok('detect: 普通のindex.js -> 非RTM', !looksLikeRtmScript('module.exports = function () {};', '/proj/index.js'));
+ok('detect: var renderClass だけ -> RTM', looksLikeRtmScript('var renderClass = "jp.ngt.rtm.render.RTMEntityRenderer";', '/x/foo.js'));
+ok('detect: //include 指令 -> RTM', looksLikeRtmScript('//include <scripts/CustomMonitor_LCD/CustomMonitor_LCD.js>', '/x/foo.js'));
 
 // ---- diagnostics ----
 let store = null;
