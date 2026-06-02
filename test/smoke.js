@@ -47,6 +47,24 @@ ok('new completions', count('new ') > 100);
 ok('member completions', count('renderer.') > 5);
 ok('ident completions', count('var x = re') > 100);
 
+// Tab確定で「名前だけ」挿入される(構文の塊を展開しない)ことを確認
+function itemsFor(line) {
+  const r = prov.provideCompletionItems(mockDoc(line), { line: 0, character: line.length });
+  return r ? r.items : [];
+}
+const identItems = itemsFor('ini');
+const initItem = identItems.find(i => i.label === 'init');
+ok('callback init inserts plain name (not snippet)',
+  initItem && typeof initItem.insertText === 'string' && initItem.insertText === 'init');
+const ipItem = identItems.find(i => i.label === 'importPackage');
+ok('importPackage inserts plain name (not snippet)',
+  ipItem && typeof ipItem.insertText === 'string' && ipItem.insertText === 'importPackage');
+// メソッド候補も名前だけ
+const memItems = prov.provideCompletionItems(mockDoc('renderer.'), { line: 0, character: 'renderer.'.length }).items;
+const regItem = memItems.find(i => i.label === 'registerParts');
+ok('method registerParts inserts plain name',
+  regItem && typeof regItem.insertText === 'string' && regItem.insertText === 'registerParts');
+
 // 1.7.10 に切替えたら候補が変わる
 const state2 = { current: () => api1710, versionName: () => '1.7.10' };
 const prov2 = createProvider(state2, () => true);

@@ -239,14 +239,14 @@ function buildMemberCompletions(api, resolvedClasses) {
 
 function buildIdentCompletions(api) {
   const items = [];
+  // コールバック・Rhino組込みも「名前だけ」を挿入する(構文の塊を一気に展開しない)。
+  // どんな関数/シグネチャかは detail / documentation で確認できる。
   for (const cb of SCRIPT_CALLBACKS) {
-    const snip = new vscode.SnippetString('function ' + cb.name + '(' + cb.params.map((p, i) => '${' + (i + 1) + ':' + p + '}').join(', ') + ') {\n\t$0\n}');
-    const it = makeItem(cb.name, CK.Function, 'RTM コールバック', cb.doc, snip, '0');
-    items.push(it);
+    const detail = 'function ' + cb.name + '(' + cb.params.join(', ') + ')';
+    items.push(makeItem(cb.name, CK.Function, 'RTM コールバック  ' + detail, cb.doc, cb.name, '0'));
   }
   for (const b of RHINO_BUILTINS) {
-    const it = makeItem(b.name, CK.Keyword, 'Rhino/Nashorn', b.doc, new vscode.SnippetString(b.insert), '1');
-    items.push(it);
+    items.push(makeItem(b.name, CK.Keyword, 'Rhino/Nashorn', b.doc, b.name, '1'));
   }
   for (const g of Object.keys(KNOWN_GLOBALS)) {
     items.push(makeItem(g, CK.Variable, 'RTM グローバル: ' + KNOWN_GLOBALS[g][0], 'スクリプトに渡される組込みオブジェクト', g, '2'));
