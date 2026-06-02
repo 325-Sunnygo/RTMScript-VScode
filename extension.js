@@ -14,7 +14,7 @@ const { VersionTreeProvider, InfoTreeProvider, VERSIONS } = require('./src/versi
 const { looksLikeRtmScript } = require('./src/detect');
 const { createSignatureProvider } = require('./src/signature');
 const { createHoverProvider } = require('./src/hover');
-const { TEMPLATES } = require('./src/knowledge');
+const { TEMPLATES, CHEATSHEET } = require('./src/knowledge');
 
 function activate(context) {
   const dataDir = path.join(context.extensionPath, 'data');
@@ -153,6 +153,15 @@ function activate(context) {
     vscode.commands.registerCommand('rtmScript.newRenderScript', () => insertTemplate('render')),
     vscode.commands.registerCommand('rtmScript.newServerScript', () => insertTemplate('server')),
     vscode.commands.registerCommand('rtmScript.newSoundScript', () => insertTemplate('sound'))
+  );
+
+  // ---- API チートシートを開く -----------------------------------------------
+  context.subscriptions.push(
+    vscode.commands.registerCommand('rtmScript.openCheatsheet', async () => {
+      const doc = await vscode.workspace.openTextDocument({ language: 'markdown', content: CHEATSHEET });
+      await vscode.window.showTextDocument(doc, { preview: true });
+      try { await vscode.commands.executeCommand('markdown.showPreview'); } catch (e) { /* noop */ }
+    })
   );
 
   // 設定変更に追従

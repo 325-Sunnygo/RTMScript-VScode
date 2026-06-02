@@ -154,4 +154,51 @@ function onUpdate(su) {
 `,
 };
 
-module.exports = { GL11_METHODS, GL11_CONSTANTS, OBF_MEANING_1122, SCRIPT_GLOBALS, TEMPLATES };
+// ---- API チートシート(コマンドで開く)------------------------------------
+const CHEATSHEET = `# RTM スクリプト API チートシート
+
+## スクリプトの種類と入口関数
+- **Render**: \`function init(par1, par2)\` でパーツ登録 → \`function render(entity, pass, par3)\` で毎フレーム描画(\`pass==0\` が通常)
+- **Server**: \`function onUpdate(entity, scriptExecuter)\`
+- **Sound**: \`function onUpdate(su)\`(su = ScriptExecuter)
+
+雛形はコマンドパレットの「RTM: ◯◯ スクリプトの雛形を挿入」、または \`rtm-render-file\` などのスニペットで挿入できます。
+
+## renderer(描画)
+先頭の \`var renderClass = "jp.ngt.rtm.render.VehiclePartsRenderer";\` で型が決まります。
+- \`renderer.registerParts(new Parts("名前"))\` → パーツ登録(init 内)
+- \`パーツ.render(renderer)\` → 描画
+- \`renderer.rotate(角度, '軸(X/Y/Z)', x, y, z)\` → 回転(ピボット指定)
+- \`renderer.getWheelRotationR(entity)\` / \`getWheelRotationL\` → 車輪回転角
+- \`renderer.getDoorMovementR(entity)\` / \`getDoorMovementL\` → ドア開度(0〜1)
+- \`renderer.getPantographMovementFront(entity)\` / \`...Back\` → パンタ上昇(0〜1)
+- \`renderer.sigmoid(値)\` → イージング
+
+## GL11(OpenGL / org.lwjgl.opengl)
+- \`GL11.glPushMatrix()\` / \`GL11.glPopMatrix()\`
+- \`GL11.glTranslatef(x, y, z)\` / \`GL11.glRotatef(角度, x, y, z)\` / \`GL11.glScalef(x, y, z)\`
+
+## GLHelper(明るさ / jp.ngt.ngtlib.renderer)
+- \`GLHelper.setBrightness(0xF000F0)\` → 最大輝度(光るパーツ)
+- \`GLHelper.setLightmapMaxBrightness()\` → 元に戻す
+
+## entity(車両)
+- \`entity.getSpeed()\`(×72 で km/h)/ \`entity.getNotch()\`
+- \`entity.getBogie(0)\` / \`entity.getBogie(1)\` → 前/後台車(EntityBogie)
+- \`entity.getResourceState().getDataMap()\` → dataMap
+- \`entity.getTrainStateData(4)\` → ドア状態(0閉/1右/2左/3両)
+- \`entity.field_70177_z\` = rotationYaw, \`entity.field_70125_A\` = rotationPitch
+
+## dataMap(状態の保存・取得)
+- 取得: \`dataMap.getInt("key")\` / \`getBoolean\` / \`getDouble\` / \`getString\`
+- 保存: \`dataMap.setInt("key", 値, 0)\`(第3引数は更新フラグ)
+
+## よく使うスニペット(prefix)
+\`rtm-render-file\` / \`rtm-server-file\` / \`rtm-sound-file\` /
+\`rtm-part\` / \`rtm-draw\` / \`rtm-bogie\` / \`rtm-wheel\` / \`rtm-door\` /
+\`rtm-panta\` / \`rtm-needle\` / \`rtm-light\` / \`rtm-rollsign\` /
+\`rtm-datamap-get\` / \`rtm-datamap-set\` / \`rtm-doorstate\` /
+\`rtm-import-render\` / \`rtm-import-server\`
+`;
+
+module.exports = { GL11_METHODS, GL11_CONSTANTS, OBF_MEANING_1122, SCRIPT_GLOBALS, TEMPLATES, CHEATSHEET };

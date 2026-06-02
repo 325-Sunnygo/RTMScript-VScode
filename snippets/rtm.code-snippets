@@ -1,0 +1,217 @@
+{
+  "RTM Render スクリプト一式": {
+    "prefix": "rtm-render-file",
+    "description": "Render スクリプトの雛形(renderClass + init + render)",
+    "body": [
+      "var renderClass = \"jp.ngt.rtm.render.${1|VehiclePartsRenderer,BasicVehiclePartsRenderer,MachinePartsRenderer,OrnamentPartsRenderer|}\";",
+      "importPackage(Packages.org.lwjgl.opengl);            // GL11",
+      "importPackage(Packages.jp.ngt.rtm.render);           // Parts",
+      "importPackage(Packages.jp.ngt.ngtlib.renderer);      // GLHelper",
+      "importPackage(Packages.jp.ngt.ngtlib.renderer.model);",
+      "",
+      "function init(par1, par2) {",
+      "\t${2:body} = renderer.registerParts(new Parts(\"${3:body}\"));",
+      "}",
+      "",
+      "function render(entity, pass, par3) {",
+      "\tif (pass != 0) return;",
+      "\tGL11.glPushMatrix();",
+      "\t${2:body}.render(renderer);",
+      "\tGL11.glPopMatrix();",
+      "}"
+    ]
+  },
+
+  "RTM Server スクリプト一式": {
+    "prefix": "rtm-server-file",
+    "description": "Server スクリプトの雛形(onUpdate)",
+    "body": [
+      "importPackage(Packages.jp.ngt.rtm);                  // RTMCore",
+      "importPackage(Packages.net.minecraft.util);          // ResourceLocation",
+      "importPackage(Packages.jp.ngt.rtm.entity.train);     // EntityTrainBase",
+      "",
+      "function onUpdate(entity, scriptExecuter) {",
+      "\tvar speed = entity.getSpeed() * 72; // km/h",
+      "\t$0",
+      "}"
+    ]
+  },
+
+  "RTM Sound スクリプト一式": {
+    "prefix": "rtm-sound-file",
+    "description": "Sound スクリプトの雛形(onUpdate)",
+    "body": [
+      "importPackage(Packages.jp.ngt.rtm.sound);",
+      "importPackage(Packages.net.minecraft.client);        // Minecraft",
+      "",
+      "function onUpdate(su) {",
+      "\tvar entity = su.getEntity();",
+      "\tif (entity == null) return;",
+      "\tvar speed = entity.getSpeed() * 72; // km/h",
+      "\t$0",
+      "}"
+    ]
+  },
+
+  "RTM init 関数": {
+    "prefix": "rtm-init",
+    "description": "init(par1, par2)",
+    "body": ["function init(par1, par2) {", "\t$0", "}"]
+  },
+  "RTM render 関数": {
+    "prefix": "rtm-render",
+    "description": "render(entity, pass, par3)",
+    "body": ["function render(entity, pass, par3) {", "\tif (pass != 0) return;", "\t$0", "}"]
+  },
+  "RTM onUpdate 関数(server)": {
+    "prefix": "rtm-onupdate",
+    "description": "onUpdate(entity, scriptExecuter)",
+    "body": ["function onUpdate(entity, scriptExecuter) {", "\t$0", "}"]
+  },
+
+  "RTM パーツ登録": {
+    "prefix": "rtm-part",
+    "description": "renderer.registerParts(new Parts(...))",
+    "body": ["${1:partVar} = renderer.registerParts(new Parts(\"${2:partName}\"));"]
+  },
+
+  "RTM パーツ描画(push/pop)": {
+    "prefix": "rtm-draw",
+    "description": "GL11 push/pop でパーツを描画",
+    "body": [
+      "GL11.glPushMatrix();",
+      "\t${1:part}.render(renderer);",
+      "GL11.glPopMatrix();"
+    ]
+  },
+
+  "RTM 台車+車輪": {
+    "prefix": "rtm-bogie",
+    "description": "台車を車両のヨーに合わせ、車輪を回転させて描画",
+    "body": [
+      "// 台車ローカルヨー(0=前台車, 1=後台車)",
+      "var bogieYaw = entity.getBogie(${1:0}).field_70177_z - entity.field_70177_z;",
+      "var wheelRot = renderer.getWheelRotationR(entity);",
+      "GL11.glPushMatrix();",
+      "\trenderer.rotate(bogieYaw, 'Y', 0.0, 0.0, 0.0);",
+      "\t${2:bogieF}.render(renderer);",
+      "\tGL11.glPushMatrix();",
+      "\t\trenderer.rotate(wheelRot, 'X', 0.0, 0.0, 0.0);",
+      "\t\t${3:wheelF}.render(renderer);",
+      "\tGL11.glPopMatrix();",
+      "GL11.glPopMatrix();"
+    ]
+  },
+
+  "RTM 車輪回転": {
+    "prefix": "rtm-wheel",
+    "description": "車輪を回転させて描画",
+    "body": [
+      "GL11.glPushMatrix();",
+      "\trenderer.rotate(renderer.getWheelRotationR(entity), 'X', 0.0, ${1:0.0}, ${2:0.0});",
+      "\t${3:wheel}.render(renderer);",
+      "GL11.glPopMatrix();"
+    ]
+  },
+
+  "RTM ドア開閉": {
+    "prefix": "rtm-door",
+    "description": "ドア開度に応じてスライド(0=閉 1=開)",
+    "body": [
+      "var open${1:R} = renderer.getDoorMovement${1:R}(entity); // 0.0〜1.0 目安",
+      "GL11.glPushMatrix();",
+      "\tGL11.glTranslatef(open${1:R} * ${2:0.5}, 0.0, 0.0); // 開く方向と距離",
+      "\t${3:door${1:R}}.render(renderer);",
+      "GL11.glPopMatrix();"
+    ]
+  },
+
+  "RTM パンタグラフ": {
+    "prefix": "rtm-panta",
+    "description": "パンタの上昇量に応じて回転",
+    "body": [
+      "var panta = renderer.getPantographMovement${1|Front,Back|}(entity); // 0.0〜1.0",
+      "GL11.glPushMatrix();",
+      "\trenderer.rotate(panta * ${2:30}, 'X', 0.0, ${3:0.0}, ${4:0.0});",
+      "\t${5:panta}.render(renderer);",
+      "GL11.glPopMatrix();"
+    ]
+  },
+
+  "RTM 計器の針(速度連動)": {
+    "prefix": "rtm-needle",
+    "description": "速度に応じて針を回転",
+    "body": [
+      "var speed = entity.getSpeed() * 72; // km/h",
+      "var angle = speed * ${1:2.0}; // 1km/h あたりの角度",
+      "GL11.glPushMatrix();",
+      "\trenderer.rotate(angle, '${2|Z,X,Y|}', ${3:0.0}, ${4:0.0}, ${5:0.0});",
+      "\t${6:needle}.render(renderer);",
+      "GL11.glPopMatrix();"
+    ]
+  },
+
+  "RTM 室内灯/前照灯(明るさ固定)": {
+    "prefix": "rtm-light",
+    "description": "GLHelper で最大輝度にして描画(光るパーツ)",
+    "body": [
+      "GLHelper.setBrightness(0xF000F0); // 最大輝度",
+      "${1:light}.render(renderer);",
+      "GLHelper.setLightmapMaxBrightness(); // 元に戻す"
+    ]
+  },
+
+  "RTM 方向幕/種別(dataMapで切替)": {
+    "prefix": "rtm-rollsign",
+    "description": "dataMap の値でパーツを出し分け",
+    "body": [
+      "var dataMap = entity.getResourceState().getDataMap();",
+      "var ${1:dest} = dataMap.getInt(\"${2:Button0}\");",
+      "if (${1:dest} == ${3:0}) ${4:rollA}.render(renderer);",
+      "else ${5:rollB}.render(renderer);"
+    ]
+  },
+
+  "RTM dataMap 取得": {
+    "prefix": "rtm-datamap-get",
+    "description": "dataMap から値を取得",
+    "body": [
+      "var ${1:value} = entity.getResourceState().getDataMap().get${2|Int,Boolean,Double,String|}(\"${3:key}\");"
+    ]
+  },
+  "RTM dataMap 設定": {
+    "prefix": "rtm-datamap-set",
+    "description": "dataMap に値を保存(第3引数は更新フラグ)",
+    "body": [
+      "entity.getResourceState().getDataMap().set${1|Int,Boolean,Double,String|}(\"${2:key}\", ${3:value}, 0);"
+    ]
+  },
+
+  "RTM ドア状態(getTrainStateData)": {
+    "prefix": "rtm-doorstate",
+    "description": "ドア状態を取得(4=ドア, 値: 0閉/1右/2左/3両)",
+    "body": [
+      "var doorState = entity.getTrainStateData(4); // 0=閉 1=右 2=左 3=両開"
+    ]
+  },
+
+  "RTM importPackage(描画)": {
+    "prefix": "rtm-import-render",
+    "description": "描画スクリプトでよく使う import 一式",
+    "body": [
+      "importPackage(Packages.org.lwjgl.opengl);            // GL11",
+      "importPackage(Packages.jp.ngt.rtm.render);           // Parts",
+      "importPackage(Packages.jp.ngt.ngtlib.renderer);      // GLHelper",
+      "importPackage(Packages.jp.ngt.ngtlib.renderer.model);"
+    ]
+  },
+  "RTM importPackage(サーバー)": {
+    "prefix": "rtm-import-server",
+    "description": "サーバースクリプトでよく使う import 一式",
+    "body": [
+      "importPackage(Packages.jp.ngt.rtm);                  // RTMCore",
+      "importPackage(Packages.net.minecraft.util);          // ResourceLocation",
+      "importPackage(Packages.jp.ngt.rtm.entity.train);     // EntityTrainBase"
+    ]
+  }
+}

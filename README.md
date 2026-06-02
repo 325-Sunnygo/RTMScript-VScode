@@ -85,6 +85,26 @@ state.    // ResourceState のメソッドが候補に出る
 - `RTM: Server スクリプトの雛形を挿入`
 - `RTM: Sound スクリプトの雛形を挿入`
 
+### 定番パターンのスニペット
+
+`rtm-` と打つと、定番パターンが候補に出ます(Tab で展開)。
+
+| prefix | 内容 |
+|---|---|
+| `rtm-render-file` / `rtm-server-file` / `rtm-sound-file` | スクリプト一式 |
+| `rtm-part` / `rtm-draw` | パーツ登録 / 描画(push/pop) |
+| `rtm-bogie` / `rtm-wheel` | 台車+車輪 / 車輪回転 |
+| `rtm-door` / `rtm-doorstate` | ドア開閉 / ドア状態取得 |
+| `rtm-panta` / `rtm-needle` / `rtm-light` | パンタ / 計器の針 / 室内灯 |
+| `rtm-rollsign` | 方向幕・種別の出し分け |
+| `rtm-datamap-get` / `rtm-datamap-set` | dataMap の取得 / 保存 |
+| `rtm-import-render` / `rtm-import-server` | importPackage 一式 |
+
+### API チートシート
+
+コマンド `RTM: API チートシートを開く` で、renderer / GL11 / entity / dataMap など
+よく使う API の一覧を開けます。
+
 ### 構文チェック
 
 ES5 として解析し、文法エラーを赤い波線で表示します。
