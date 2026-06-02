@@ -69,23 +69,14 @@
         },
         "rtmScript.activateOnlyInRtmScripts": {
           "type": "boolean",
-          "default": false,
-          "description": "true のとき、importPackage / Packages / renderer などRTMらしい記述を含むファイルでのみ補完・チェックを有効化する。"
+          "default": true,
+          "description": "true(既定)のとき、RTMらしい記述(importPackage / Packages / renderer 等)を含むファイル、または scripts フォルダ内・RTMらしいファイル名の .js でのみ補完・チェックを有効化する。普通のJavaScript開発を妨げないための設定。false で全 .js に対して有効化。"
         }
       }
     },
     "configurationDefaults": {
-      "editor.tabCompletion": "on",
       "[javascript]": {
-        "editor.tabCompletion": "on",
-        "editor.quickSuggestions": {
-          "other": true,
-          "comments": false,
-          "strings": true
-        },
-        "editor.suggestOnTriggerCharacters": true,
-        "editor.acceptSuggestionOnEnter": "on",
-        "editor.wordBasedSuggestions": "off"
+        "editor.tabCompletion": "on"
       }
     },
     "commands": [

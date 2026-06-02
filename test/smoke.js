@@ -78,6 +78,15 @@ ok('local var inference: s.getResourceName',
 const twoStep = resolveType('ItemWithModel.getModelState(stack).getDataMap()', api1122, '', 0);
 ok('two-step chain resolves to DataMap', twoStep.length > 0 && twoStep[0].name === 'DataMap');
 
+// ---- RTM スクリプト検出(普通のJS開発を妨げないこと) ----
+const { looksLikeRtmScript } = require('../src/detect');
+ok('detect: importPackage を含む -> RTM', looksLikeRtmScript('importPackage(Packages.jp.ngt.rtm.render);', '/x/foo.js'));
+ok('detect: renderer 使用 -> RTM', looksLikeRtmScript('body = renderer.registerParts(new Parts("a"));', '/x/foo.js'));
+ok('detect: scripts フォルダ配下 -> RTM', looksLikeRtmScript('var x = 1;', '/pack/assets/minecraft/scripts/Foo.js'));
+ok('detect: Render_xxx.js -> RTM', looksLikeRtmScript('var x = 1;', '/x/Render_sd8200_1.js'));
+ok('detect: 普通のJS(modernなapp.js) -> 非RTM', !looksLikeRtmScript('const app = () => { let n = 1; };', '/proj/src/app.js'));
+ok('detect: 普通のindex.js -> 非RTM', !looksLikeRtmScript('module.exports = function () {};', '/proj/index.js'));
+
 // ---- diagnostics ----
 let store = null;
 vscode.languages.createDiagnosticCollection = () => ({ set: (uri, d) => { store = d; }, delete: () => { store = null; } });

@@ -18,6 +18,17 @@ RealTrainMod (RTM) のモデルパック用 ES5 / Rhino スクリプトを VSCod
 
 ## 使い方
 
+### 有効になる範囲(普通のJS開発を妨げません)
+
+既定では、**RTM スクリプトと判断できる `.js` のときだけ**補完・構文チェックが働きます。判定はいずれか:
+
+- 中身に RTM 特有の記述がある(`importPackage(` / `Packages.` / `renderer` / `registerParts` / `function onUpdate(` など)
+- `scripts` フォルダ配下にある(RTM モデルパックの `assets/.../scripts`)
+- ファイル名が `Render_…` `Server_…` `Sound_…` `ANSL_…` などの RTM らしい名前
+
+そのため、普通の(モダンな)JavaScript ファイルでは ES5 エラーや RTM 補完は出ません。
+全ての `.js` で常に有効化したい場合は、設定 `rtmScript.activateOnlyInRtmScripts` を `false` にします。
+
 ### バージョンの切り替え
 
 左端のアクティビティバーにある **RTM Script** アイコンを開くと、バージョン切り替えビューがあります。

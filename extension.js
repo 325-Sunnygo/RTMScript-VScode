@@ -11,6 +11,7 @@ const { ApiIndex } = require('./src/apiIndex');
 const { createProvider } = require('./src/completion');
 const { createDiagnostics } = require('./src/diagnostics');
 const { VersionTreeProvider, InfoTreeProvider, VERSIONS } = require('./src/versionView');
+const { looksLikeRtmScript } = require('./src/detect');
 
 function activate(context) {
   const dataDir = path.join(context.extensionPath, 'data');
@@ -38,12 +39,14 @@ function activate(context) {
     current() { return indexFor(cfg().version); },
   };
 
-  // このドキュメントで RTM 支援を有効化するか
+  // このドキュメントで RTM 支援を有効化するか。
+  // 既定(activateOnlyInRtmScripts=true)では、普通の JavaScript 開発を妨げないよう
+  // 「RTM らしいファイル」(中身・scripts フォルダ・RTM らしいファイル名)だけで有効化する。
   function shouldActivate(document) {
     if (!document || document.languageId !== 'javascript') return false;
     if (!cfg().activateOnlyInRtmScripts) return true;
-    const head = document.getText().slice(0, 4000);
-    return /\bimportPackage\s*\(|\bPackages\.|\brenderer\b|\bscriptExecuter\b|registerParts\b/.test(head);
+    const fsPath = (document.uri && document.uri.fsPath) ? document.uri.fsPath : (document.fileName || '');
+    return looksLikeRtmScript(document.getText(), fsPath);
   }
 
   // ---- 補完プロバイダ -------------------------------------------------------
