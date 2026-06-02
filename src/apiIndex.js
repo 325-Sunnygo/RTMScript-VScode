@@ -111,11 +111,60 @@ class ApiIndex {
       if (ok) node.__classes.push(c.name);
     }
 
+    // 継承を展開(基底クラスのメソッド/フィールドを各クラスへ取り込む)
+    this._resolveInheritance();
+
     this.stats = {
       classes: Object.keys(this.classesByFqn).length,
       packages: this.packageSet.size,
       obf: this.obfMethods.length,
     };
+  }
+
+  // ext(extends/implements の短縮名)を辿って、継承メンバーを各クラスへ展開する。
+  // memberPool は own ベースで先に構築済みなので、ここでの変更は補完の型解決に効く。
+  _resolveInheritance() {
+    const shortToFqn = (short) => {
+      const cleaned = (short || '').replace(/[^\w$]/g, '');
+      if (!cleaned) return null;
+      if (this.classesByFqn[cleaned]) return cleaned;
+      const list = this.classShortNames.get(cleaned);
+      return list && list.length ? list[0] : null;
+    };
+    // own メンバーのスナップショット(展開で混ざらないように)
+    const own = {};
+    for (const fqn of Object.keys(this.classesByFqn)) {
+      const c = this.classesByFqn[fqn];
+      own[fqn] = { methods: (c.methods || []).slice(), fields: (c.fields || []).slice(), ext: c.ext || [] };
+    }
+    const cache = {};
+    const collect = (fqn, stack) => {
+      if (cache[fqn]) return cache[fqn];
+      const o = own[fqn];
+      if (!o) return { methods: [], fields: [] };
+      if (stack.has(fqn)) return { methods: [], fields: [] };
+      stack.add(fqn);
+      const methods = new Map();
+      const fields = new Map();
+      for (const m of o.methods) methods.set(m.name + '/' + (m.params ? m.params.length : 0), m);
+      for (const f of o.fields) fields.set(f.name, f);
+      for (const sup of o.ext) {
+        const sfqn = shortToFqn(sup);
+        if (!sfqn || sfqn === fqn) continue;
+        const inh = collect(sfqn, stack);
+        for (const m of inh.methods) { const k = m.name + '/' + (m.params ? m.params.length : 0); if (!methods.has(k)) methods.set(k, m); }
+        for (const f of inh.fields) { if (!fields.has(f.name)) fields.set(f.name, f); }
+      }
+      stack.delete(fqn);
+      const res = { methods: [...methods.values()], fields: [...fields.values()] };
+      cache[fqn] = res;
+      return res;
+    };
+    for (const fqn of Object.keys(this.classesByFqn)) {
+      const flat = collect(fqn, new Set());
+      this.classesByFqn[fqn].methods = flat.methods;
+      this.classesByFqn[fqn].fields = flat.fields;
+    }
   }
 
   // "jp.ngt.rtm" のような接頭辞に対する次セグメント候補とクラスを返す

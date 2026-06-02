@@ -4,7 +4,11 @@ RealTrainMod (RTM) のモデルパック用 ES5 / Rhino スクリプトを VSCod
 
 - 構文ミスを赤い波線で表示します(ES5 として解析)
 - RTM / NGTLib のクラス・メソッド、難読メソッド (`func_xxxxx_x`)、`importPackage`、`init` / `render` / `onUpdate` などのコールバックを補完します
-- メソッドの戻り値の型をたどって、チェーンの続きを補完します
+- メソッドの戻り値の型をたどって、チェーンの続きを補完します(**継承メソッドも含む**)
+- `renderer` は先頭の `var renderClass = "..."` を読んで正しい型で補完します
+- `GL11.`(OpenGL)や難読名の**意味**(`field_70177_z` → rotationYaw など)も出します
+- メソッドの `(` で**引数ヒント**、識別子に**ホバー**で説明
+- `init`/`render`/`onUpdate` を正しく書いた**雛形をコマンドで挿入**できます
 - 左サイドバーで 1.12.2 / 1.7.10 を切り替えると、補完候補がそのバージョンの API に変わります
 
 補完データは、それぞれ次のソースから生成しています。
@@ -66,6 +70,20 @@ ItemWithModel.getModelState(stack).getResourceName()
 var state = ItemWithModel.getModelState(stack);
 state.    // ResourceState のメソッドが候補に出る
 ```
+
+### 引数ヒント・ホバー
+
+メソッドの `(` を打つと引数のヒントが出ます。識別子(メソッド・クラス・難読名・グローバル)に
+カーソルを乗せると、シグネチャや意味の説明が出ます。難読名(`func_…` / `field_…`)は
+よく使うものに読める意味(例: `field_70177_z` → rotationYaw)が付きます。
+
+### スクリプト雛形の挿入
+
+コマンドパレット(`Cmd/Ctrl+Shift+P`)で次を実行すると、正しい形の雛形を挿入します。
+
+- `RTM: Render スクリプトの雛形を挿入`
+- `RTM: Server スクリプトの雛形を挿入`
+- `RTM: Sound スクリプトの雛形を挿入`
 
 ### 構文チェック
 

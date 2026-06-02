@@ -74,6 +74,7 @@ function parseFile(file) {
 
   let pkg = '';
   let className = '';
+  let superTypes = [];
   const methods = new Map(); // name -> {name, params, ret, kind}
   const fields = new Map();
 
@@ -86,7 +87,21 @@ function parseFile(file) {
     }
     if (!className) {
       const mc = line.match(RE_CLASS);
-      if (mc) { className = mc[2]; }
+      if (mc) {
+        className = mc[2];
+        // extends / implements を同じ宣言行から拾う(短縮名で記録)。
+        // 型パラメータ <T extends ...> の中の extends を誤検知しないよう、
+        // まずネストしたジェネリクス <...> を全て除去してから解析する。
+        let decl = line.slice(mc.index);
+        let prev;
+        do { prev = decl; decl = decl.replace(/<[^<>]*>/g, ''); } while (decl !== prev);
+        const ext = decl.match(/\bextends\s+([\w.$,\s]+?)(?:\bimplements\b|\{|$)/);
+        const impl = decl.match(/\bimplements\s+([\w.$,\s]+?)(?:\{|$)/);
+        const collect = (s) => (s || '').split(',')
+          .map(x => shortType(x))
+          .filter(x => x && x !== className);
+        superTypes = collect(ext && ext[1]).concat(collect(impl && impl[1]));
+      }
     }
 
     // メソッド
@@ -123,7 +138,7 @@ function parseFile(file) {
 
   const fqn = pkg ? pkg + '.' + className : className;
   return {
-    pkg, className, fqn,
+    pkg, className, fqn, superTypes,
     methods: [...methods.values()],
     fields: [...fields.values()],
     obfMethods: [...obfMethods],
@@ -151,8 +166,10 @@ function buildVersion(version, roots) {
 
       const entry = classes[info.fqn] || {
         name: info.className, pkg: info.pkg, fqn: info.fqn,
+        ext: info.superTypes || [],
         methods: [], fields: [],
       };
+      if ((!entry.ext || !entry.ext.length) && info.superTypes && info.superTypes.length) entry.ext = info.superTypes;
       // マージ(同名クラスが複数 root にある場合)
       const seen = new Set(entry.methods.map(m => m.name + '/' + m.params.length));
       for (const m of info.methods) {

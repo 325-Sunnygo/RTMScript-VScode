@@ -2,7 +2,7 @@
   "name": "vscord-rtm",
   "displayName": "RTM Script Helper (RealTrainMod)",
   "description": "RealTrainMod の ES5(Rhino)スクリプトを書きやすくする補完・構文チェック拡張。1.12.2 / 1.7.10 を左サイドバーで切替。",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "publisher": "325-Sunnygo",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -95,6 +95,18 @@
       {
         "command": "rtmScript.selectVersionItem",
         "title": "RTM: このバージョンを選択"
+      },
+      {
+        "command": "rtmScript.newRenderScript",
+        "title": "RTM: Render スクリプトの雛形を挿入"
+      },
+      {
+        "command": "rtmScript.newServerScript",
+        "title": "RTM: Server スクリプトの雛形を挿入"
+      },
+      {
+        "command": "rtmScript.newSoundScript",
+        "title": "RTM: Sound スクリプトの雛形を挿入"
       }
     ],
     "viewsContainers": {

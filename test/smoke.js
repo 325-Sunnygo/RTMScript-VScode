@@ -96,6 +96,36 @@ ok('local var inference: s.getResourceName',
 const twoStep = resolveType('ItemWithModel.getModelState(stack).getDataMap()', api1122, '', 0);
 ok('two-step chain resolves to DataMap', twoStep.length > 0 && twoStep[0].name === 'DataMap');
 
+// ---- 知識レイヤー強化(GL11 / renderClass / 継承 / 難読意味 / signature) ----
+const { detectRenderClass } = require('../src/completion');
+ok('detectRenderClass reads var renderClass',
+  detectRenderClass('var renderClass = "jp.ngt.rtm.render.MachinePartsRenderer";') === 'jp.ngt.rtm.render.MachinePartsRenderer');
+
+const rcDoc = 'var renderClass = "jp.ngt.rtm.render.VehiclePartsRenderer";\nrenderer.';
+const rcCls = resolveType('renderer', api1122, rcDoc, 0);
+ok('renderer resolves via renderClass', rcCls.length > 0 && rcCls[0].name === 'VehiclePartsRenderer');
+ok('renderer includes inherited registerParts/rotate',
+  chainHas('renderer', rcDoc, 'registerParts') && chainHas('renderer', rcDoc, 'rotate'));
+
+// GL11 補完
+const gl = prov.provideCompletionItems(mockDoc('GL11.'), { line: 0, character: 'GL11.'.length }).items;
+ok('GL11. completions include glPushMatrix', gl.some(i => i.label === 'glPushMatrix'));
+
+// 難読名の意味が detail に出る(1.12.2)
+const entItems = prov.provideCompletionItems(mockDoc('entity.'), { line: 0, character: 'entity.'.length }).items;
+const yawItem = entItems.find(i => i.label === 'field_70177_z');
+ok('obf field_70177_z shows rotationYaw meaning', yawItem && /rotationYaw/.test(yawItem.detail || ''));
+
+// SignatureHelp
+const { findEnclosingCall, createSignatureProvider } = require('../src/signature');
+const fc = findEnclosingCall('renderer.rotate(10, ');
+ok('findEnclosingCall parses name/receiver/activeParam',
+  fc && fc.name === 'rotate' && fc.receiver === 'renderer' && fc.activeParam === 1);
+const sigProv = createSignatureProvider(state, () => true);
+function sigDoc(text) { return { languageId: 'javascript', getText: () => text, lineAt: () => ({ text }) }; }
+const help = sigProv.provideSignatureHelp(sigDoc('renderer.rotate('), { line: 0, character: 'renderer.rotate('.length });
+ok('signature help for renderer.rotate', help && help.signatures.length > 0);
+
 // ---- RTM スクリプト検出(普通のJS開発を妨げないこと) ----
 const { looksLikeRtmScript } = require('../src/detect');
 ok('detect: importPackage を含む -> RTM', looksLikeRtmScript('importPackage(Packages.jp.ngt.rtm.render);', '/x/foo.js'));

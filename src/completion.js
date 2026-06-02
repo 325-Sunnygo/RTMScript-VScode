@@ -16,9 +16,20 @@
  */
 
 const vscode = require('vscode');
-const { KNOWN_GLOBALS, SCRIPT_CALLBACKS, RHINO_BUILTINS } = require('./apiIndex');
+const { SCRIPT_CALLBACKS, RHINO_BUILTINS } = require('./apiIndex');
+const { GL11_METHODS, GL11_CONSTANTS, OBF_MEANING_1122, SCRIPT_GLOBALS } = require('./knowledge');
 
 const CK = vscode.CompletionItemKind;
+
+// グローバル変数名 -> 候補 FQN(知識レイヤーの SCRIPT_GLOBALS から)
+const GLOBAL_TYPES = {};
+for (const g of Object.keys(SCRIPT_GLOBALS)) GLOBAL_TYPES[g] = SCRIPT_GLOBALS[g].types;
+
+// 先頭の var renderClass = "FQN" を読んで renderer の型を決める
+function detectRenderClass(docText) {
+  const m = docText && docText.match(/renderClass\s*=\s*["']([\w.$]+)["']/);
+  return m ? m[1] : null;
+}
 
 function makeItem(label, kind, detail, doc, insert, sortPrefix) {
   const it = new vscode.CompletionItem(label, kind);
@@ -131,9 +142,16 @@ function resolveBase(baseTok, api, docText, depth) {
   const ident = leadingIdent(base);
   const hasCall = /\(/.test(base);
 
-  // 既知グローバル(renderer / entity / dataMap / formation / scriptExecuter / su / world)
-  if (!hasCall && KNOWN_GLOBALS[ident]) {
-    return KNOWN_GLOBALS[ident].map(f => api.getClass(f)).filter(Boolean);
+  // renderer は先頭の var renderClass で型が決まる(継承展開済みなので基底メソッドも出る)
+  if (!hasCall && ident === 'renderer') {
+    const rc = detectRenderClass(docText);
+    if (rc) { const c = api.findClass(stripType(rc)); if (c) return [c]; }
+    return GLOBAL_TYPES.renderer.map(f => api.getClass(f)).filter(Boolean);
+  }
+
+  // 既知グローバル(entity / dataMap / formation / scriptExecuter / su / world)
+  if (!hasCall && GLOBAL_TYPES[ident]) {
+    return GLOBAL_TYPES[ident].map(f => api.getClass(f)).filter(Boolean);
   }
 
   // クラス名(static 的呼び出し: ItemWithModel.getModelState(...))
@@ -204,8 +222,13 @@ function buildClassCompletions(api, limit) {
   return items;
 }
 
+// 難読名 -> 読める意味(1.12.2 のみ)
+function obfMeaning(version, name) {
+  return version === '1.12.2' ? (OBF_MEANING_1122[name] || null) : null;
+}
+
 // 解決済みクラス配列を優先表示しつつ、横断プール + 難読をフォールバックで付ける
-function buildMemberCompletions(api, resolvedClasses) {
+function buildMemberCompletions(api, resolvedClasses, version) {
   const items = [];
   const seen = new Set();
   const add = (label, kind, detail, doc, sort) => {
@@ -217,23 +240,46 @@ function buildMemberCompletions(api, resolvedClasses) {
   // 1) 型が解決できたクラスのメンバー(最優先)
   for (const c of resolvedClasses) {
     if (!c) continue;
-    for (const m of c.methods || []) add(m.name, CK.Method, methodSignature(m), '`' + c.name + '` のメソッド', '0');
-    for (const f of c.fields || []) add(f.name, CK.Field, f.name + ': ' + f.type, '`' + c.name + '` のフィールド', '1');
+    for (const m of c.methods || []) {
+      const mean = obfMeaning(version, m.name);
+      add(m.name, CK.Method, mean ? mean : methodSignature(m), '`' + c.name + '` のメソッド', '0');
+    }
+    for (const f of c.fields || []) {
+      const mean = obfMeaning(version, f.name);
+      add(f.name, CK.Field, mean ? mean : (f.name + ': ' + f.type), '`' + c.name + '` のフィールド', '1');
+    }
   }
 
   // 2) 横断プール(前方一致で絞られる)
   for (const [name, e] of api.memberPool) {
-    if (e.kind === 'method') add(name, CK.Method, methodSignature(e), '所属: ' + e.owners.slice(0, 4).join(', '), '5');
-    else add(name, CK.Field, name + ': ' + (e.type || ''), '所属: ' + e.owners.slice(0, 4).join(', '), '6');
+    const mean = obfMeaning(version, name);
+    if (e.kind === 'method') add(name, CK.Method, mean ? mean : methodSignature(e), '所属: ' + e.owners.slice(0, 4).join(', '), '5');
+    else add(name, CK.Field, mean ? mean : (name + ': ' + (e.type || '')), '所属: ' + e.owners.slice(0, 4).join(', '), '6');
   }
 
-  // 3) 難読メソッド/フィールド
+  // 3) 難読メソッド/フィールド(意味が分かるものは detail に表示)
   for (const fm of api.obfMethods) {
+    const mean = obfMeaning(version, fm);
     const owners = api.memberOwners[fm];
-    add(fm, CK.Method, '難読メソッド', owners ? '使用箇所: ' + owners.slice(0, 4).join(', ') : null, '7');
+    add(fm, CK.Method, mean ? mean : '難読メソッド', owners ? '使用箇所: ' + owners.slice(0, 4).join(', ') : null, '7');
   }
-  for (const ff of api.obfFields) add(ff, CK.Field, '難読フィールド', null, '8');
+  for (const ff of api.obfFields) {
+    const mean = obfMeaning(version, ff);
+    add(ff, CK.Field, mean ? mean : '難読フィールド', null, '8');
+  }
 
+  return items;
+}
+
+// GL11.xxx の補完(LWJGL — DBには無いので知識レイヤーから)
+function buildGL11Completions() {
+  const items = [];
+  for (const [name, sig, doc] of GL11_METHODS) {
+    items.push(makeItem(name, CK.Method, 'GL11.' + name + sig, doc, name, '0'));
+  }
+  for (const c of GL11_CONSTANTS) {
+    items.push(makeItem(c, CK.Constant, 'GL11 定数', null, c, '1'));
+  }
   return items;
 }
 
@@ -248,8 +294,11 @@ function buildIdentCompletions(api) {
   for (const b of RHINO_BUILTINS) {
     items.push(makeItem(b.name, CK.Keyword, 'Rhino/Nashorn', b.doc, b.name, '1'));
   }
-  for (const g of Object.keys(KNOWN_GLOBALS)) {
-    items.push(makeItem(g, CK.Variable, 'RTM グローバル: ' + KNOWN_GLOBALS[g][0], 'スクリプトに渡される組込みオブジェクト', g, '2'));
+  // GL11(描画スクリプトで頻出)
+  items.push(makeItem('GL11', CK.Class, 'org.lwjgl.opengl.GL11', 'OpenGL。glPushMatrix / glRotatef など', 'GL11', '1'));
+  // 組込みグローバル
+  for (const g of Object.keys(SCRIPT_GLOBALS)) {
+    items.push(makeItem(g, CK.Variable, 'RTM グローバル: ' + SCRIPT_GLOBALS[g].types[0], SCRIPT_GLOBALS[g].doc, g, '2'));
   }
   for (const it of buildClassCompletions(api, 4000)) items.push(it);
   return items;
@@ -262,6 +311,7 @@ function createProvider(state, shouldActivate) {
       const api = state.current();
       if (!api || !api.ok) return undefined;
 
+      const version = state.versionName ? state.versionName() : '1.12.2';
       const linePrefix = document.lineAt(position).text.slice(0, position.character);
       const ctx = analyze(linePrefix);
 
@@ -274,9 +324,11 @@ function createProvider(state, shouldActivate) {
           items = buildClassCompletions(api, 4000);
           break;
         case 'member': {
+          // GL11. は LWJGL なので知識レイヤーから直接
+          if (ctx.receiver === 'GL11') { items = buildGL11Completions(); break; }
           const docText = document.getText();
           const resolved = resolveType(ctx.receiver, api, docText, 0);
-          items = buildMemberCompletions(api, resolved);
+          items = buildMemberCompletions(api, resolved, version);
           break;
         }
         default:
@@ -288,4 +340,4 @@ function createProvider(state, shouldActivate) {
   };
 }
 
-module.exports = { createProvider, analyze, resolveType, extractReceiver, splitTopLevelDots };
+module.exports = { createProvider, analyze, resolveType, extractReceiver, splitTopLevelDots, detectRenderClass, GLOBAL_TYPES };

@@ -12,6 +12,9 @@ const { createProvider } = require('./src/completion');
 const { createDiagnostics } = require('./src/diagnostics');
 const { VersionTreeProvider, InfoTreeProvider, VERSIONS } = require('./src/versionView');
 const { looksLikeRtmScript } = require('./src/detect');
+const { createSignatureProvider } = require('./src/signature');
+const { createHoverProvider } = require('./src/hover');
+const { TEMPLATES } = require('./src/knowledge');
 
 function activate(context) {
   const dataDir = path.join(context.extensionPath, 'data');
@@ -56,6 +59,23 @@ function activate(context) {
       { language: 'javascript' },
       provider,
       '.', '(' // トリガー文字
+    )
+  );
+
+  // ---- 引数ヒント(SignatureHelp)-------------------------------------------
+  context.subscriptions.push(
+    vscode.languages.registerSignatureHelpProvider(
+      { language: 'javascript' },
+      createSignatureProvider(state, shouldActivate),
+      '(', ','
+    )
+  );
+
+  // ---- ホバー ---------------------------------------------------------------
+  context.subscriptions.push(
+    vscode.languages.registerHoverProvider(
+      { language: 'javascript' },
+      createHoverProvider(state, shouldActivate)
     )
   );
 
@@ -114,6 +134,25 @@ function activate(context) {
     vscode.commands.registerCommand('rtmScript.toggleVersion', () => {
       setVersion(cfg().version === '1.12.2' ? '1.7.10' : '1.12.2');
     })
+  );
+
+  // ---- スクリプト雛形の挿入 -------------------------------------------------
+  async function insertTemplate(kind) {
+    const tpl = TEMPLATES[kind];
+    if (!tpl) return;
+    let editor = vscode.window.activeTextEditor;
+    // アクティブな JS が無ければ新規ファイルを作る
+    if (!editor || editor.document.languageId !== 'javascript') {
+      const doc = await vscode.workspace.openTextDocument({ language: 'javascript', content: tpl });
+      await vscode.window.showTextDocument(doc);
+      return;
+    }
+    await editor.edit(eb => eb.insert(editor.selection.active, tpl));
+  }
+  context.subscriptions.push(
+    vscode.commands.registerCommand('rtmScript.newRenderScript', () => insertTemplate('render')),
+    vscode.commands.registerCommand('rtmScript.newServerScript', () => insertTemplate('server')),
+    vscode.commands.registerCommand('rtmScript.newSoundScript', () => insertTemplate('sound'))
   );
 
   // 設定変更に追従
