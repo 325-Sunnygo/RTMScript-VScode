@@ -32,7 +32,8 @@ function activate(context) {
       version: c.get('version', '1.12.2'),
       ecmaVersion: c.get('ecmaVersion', '5'),
       enableDiagnostics: c.get('enableDiagnostics', true),
-      activateOnlyInRtmScripts: c.get('activateOnlyInRtmScripts', false),
+      activateOnlyInRtmScripts: c.get('activateOnlyInRtmScripts', true),
+      autoRtmLanguageMode: c.get('autoRtmLanguageMode', true),
     };
   }
 
@@ -42,11 +43,16 @@ function activate(context) {
     current() { return indexFor(cfg().version); },
   };
 
+  // 対象言語: 通常の javascript と、RTM 専用モード rtmjs の両方
+  const SELECTOR = [{ language: 'javascript' }, { language: 'rtmjs' }];
+
   // このドキュメントで RTM 支援を有効化するか。
-  // 既定(activateOnlyInRtmScripts=true)では、普通の JavaScript 開発を妨げないよう
-  // 「RTM らしいファイル」(中身・scripts フォルダ・RTM らしいファイル名)だけで有効化する。
+  // - rtmjs(RTM 専用モード)なら常に有効
+  // - javascript なら、既定では「RTM らしいファイル」だけで有効化(普通の開発を妨げない)
   function shouldActivate(document) {
-    if (!document || document.languageId !== 'javascript') return false;
+    if (!document) return false;
+    if (document.languageId === 'rtmjs') return true;
+    if (document.languageId !== 'javascript') return false;
     if (!cfg().activateOnlyInRtmScripts) return true;
     const fsPath = (document.uri && document.uri.fsPath) ? document.uri.fsPath : (document.fileName || '');
     return looksLikeRtmScript(document.getText(), fsPath);
@@ -55,27 +61,20 @@ function activate(context) {
   // ---- 補完プロバイダ -------------------------------------------------------
   const provider = createProvider(state, shouldActivate);
   context.subscriptions.push(
-    vscode.languages.registerCompletionItemProvider(
-      { language: 'javascript' },
-      provider,
-      '.', '(' // トリガー文字
-    )
+    vscode.languages.registerCompletionItemProvider(SELECTOR, provider, '.', '(')
   );
 
   // ---- 引数ヒント(SignatureHelp)-------------------------------------------
   context.subscriptions.push(
     vscode.languages.registerSignatureHelpProvider(
-      { language: 'javascript' },
-      createSignatureProvider(state, shouldActivate),
-      '(', ','
+      SELECTOR, createSignatureProvider(state, shouldActivate), '(', ','
     )
   );
 
   // ---- ホバー ---------------------------------------------------------------
   context.subscriptions.push(
     vscode.languages.registerHoverProvider(
-      { language: 'javascript' },
-      createHoverProvider(state, shouldActivate)
+      SELECTOR, createHoverProvider(state, shouldActivate)
     )
   );
 
@@ -153,6 +152,43 @@ function activate(context) {
     vscode.commands.registerCommand('rtmScript.newRenderScript', () => insertTemplate('render')),
     vscode.commands.registerCommand('rtmScript.newServerScript', () => insertTemplate('server')),
     vscode.commands.registerCommand('rtmScript.newSoundScript', () => insertTemplate('sound'))
+  );
+
+  // ---- RTM 専用言語モード ---------------------------------------------------
+  // 自動切替の対象は「中身が明らかに RTM」のものに限定(scriptsフォルダ名だけでは切替えない)。
+  function contentLooksRtm(document) {
+    const head = document.getText().slice(0, 4000);
+    return /\bimportPackage\s*\(|\bPackages\.|\brenderer\b|registerParts\b|function\s+(onUpdate|render|init)\s*\(/.test(head);
+  }
+  const autoSwitched = new Set(); // 自動切替済みURI(戻した後に再切替しないため)
+  async function maybeAutoSwitch(document) {
+    if (!document || document.languageId !== 'javascript') return;
+    if (!cfg().autoRtmLanguageMode) return;
+    const key = document.uri.toString();
+    if (autoSwitched.has(key)) return;
+    if (!contentLooksRtm(document)) return;
+    autoSwitched.add(key);
+    try { await vscode.languages.setTextDocumentLanguage(document, 'rtmjs'); } catch (e) { /* noop */ }
+  }
+  // 起動時/開いた時/編集時に判定
+  if (vscode.window.activeTextEditor) maybeAutoSwitch(vscode.window.activeTextEditor.document);
+  context.subscriptions.push(
+    vscode.workspace.onDidOpenTextDocument(maybeAutoSwitch),
+    vscode.window.onDidChangeActiveTextEditor(ed => { if (ed) maybeAutoSwitch(ed.document); })
+  );
+
+  async function setDocLanguage(lang) {
+    const ed = vscode.window.activeTextEditor;
+    if (!ed) return;
+    try {
+      await vscode.languages.setTextDocumentLanguage(ed.document, lang);
+      if (lang === 'javascript') autoSwitched.add(ed.document.uri.toString()); // 戻したら自動切替しない
+      else autoSwitched.delete(ed.document.uri.toString());
+    } catch (e) { /* noop */ }
+  }
+  context.subscriptions.push(
+    vscode.commands.registerCommand('rtmScript.toRtmMode', () => setDocLanguage('rtmjs')),
+    vscode.commands.registerCommand('rtmScript.toJsMode', () => setDocLanguage('javascript'))
   );
 
   // ---- API チートシートを開く -----------------------------------------------

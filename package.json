@@ -2,7 +2,7 @@
   "name": "vscord-rtm",
   "displayName": "RTM Script Helper (RealTrainMod)",
   "description": "RealTrainMod の ES5(Rhino)スクリプトを書きやすくする補完・構文チェック拡張。1.12.2 / 1.7.10 を左サイドバーで切替。",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "publisher": "325-Sunnygo",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -36,6 +36,7 @@
   ],
   "activationEvents": [
     "onLanguage:javascript",
+    "onLanguage:rtmjs",
     "onStartupFinished"
   ],
   "main": "./extension.js",
@@ -71,12 +72,12 @@
           "type": "boolean",
           "default": true,
           "description": "true(既定)のとき、RTMらしい記述(importPackage / Packages / renderer 等)を含むファイル、または scripts フォルダ内・RTMらしいファイル名の .js でのみ補完・チェックを有効化する。普通のJavaScript開発を妨げないための設定。false で全 .js に対して有効化。"
+        },
+        "rtmScript.autoRtmLanguageMode": {
+          "type": "boolean",
+          "default": true,
+          "description": "true(既定)のとき、RTMらしい .js を開いたら自動で『RTM Script』言語モードに切替える。これで VSCode 標準の DOM/ブラウザAPI候補(RTCPeerConnection 等)が出なくなり、候補がRTM中心になる。元に戻すには右下の言語表示か『RTM: 通常のJavaScriptに戻す』。"
         }
-      }
-    },
-    "configurationDefaults": {
-      "[javascript]": {
-        "editor.tabCompletion": "on"
       }
     },
     "commands": [
@@ -111,11 +112,40 @@
       {
         "command": "rtmScript.openCheatsheet",
         "title": "RTM: API チートシートを開く"
+      },
+      {
+        "command": "rtmScript.toRtmMode",
+        "title": "RTM: このファイルを RTM 専用モードで開く"
+      },
+      {
+        "command": "rtmScript.toJsMode",
+        "title": "RTM: 通常の JavaScript に戻す"
+      }
+    ],
+    "languages": [
+      {
+        "id": "rtmjs",
+        "aliases": [
+          "RTM Script",
+          "rtmjs"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "rtmjs",
+        "scopeName": "source.rtmjs",
+        "path": "./syntaxes/rtmjs.tmLanguage.json"
       }
     ],
     "snippets": [
       {
         "language": "javascript",
+        "path": "./snippets/rtm.code-snippets"
+      },
+      {
+        "language": "rtmjs",
         "path": "./snippets/rtm.code-snippets"
       }
     ],

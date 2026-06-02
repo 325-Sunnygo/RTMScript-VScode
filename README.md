@@ -33,6 +33,19 @@ RealTrainMod (RTM) のモデルパック用 ES5 / Rhino スクリプトを VSCod
 そのため、普通の(モダンな)JavaScript ファイルでは ES5 エラーや RTM 補完は出ません。
 全ての `.js` で常に有効化したい場合は、設定 `rtmScript.activateOnlyInRtmScripts` を `false` にします。
 
+### RTM 専用モード(候補をすっきりさせる)
+
+RTM らしい `.js` を開くと、自動で **「RTM Script」言語モード**に切り替わります(右下の言語表示が
+`RTM Script` になります)。このモードでは VSCode 標準の DOM/ブラウザ API 候補(`RTCPeerConnection` や
+`document` など RTM と無関係なもの)が出なくなり、候補が RTM 中心になります。
+
+- 自動切替を止めたいとき: 設定 `rtmScript.autoRtmLanguageMode` を `false`
+- 手動で切り替え: コマンド `RTM: このファイルを RTM 専用モードで開く` / `RTM: 通常の JavaScript に戻す`
+  (右下の言語表示クリックでも変更できます)
+
+なお Tab キーで候補が勝手に確定しないようにしています。候補は一覧が出ている状態で
+**↑↓ で選んで Enter** で確定、**Tab はインデント**に使えます。
+
 ### バージョンの切り替え
 
 左端のアクティビティバーにある **RTM Script** アイコンを開くと、バージョン切り替えビューがあります。

@@ -19,7 +19,7 @@ function createDiagnostics(getConfig, shouldActivate) {
   const collection = vscode.languages.createDiagnosticCollection('rtmScript');
 
   function run(document) {
-    if (document.languageId !== 'javascript') { collection.delete(document.uri); return; }
+    if (document.languageId !== 'javascript' && document.languageId !== 'rtmjs') { collection.delete(document.uri); return; }
     const cfg = getConfig();
     if (!cfg.enableDiagnostics || !shouldActivate(document)) {
       collection.delete(document.uri);

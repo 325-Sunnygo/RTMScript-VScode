@@ -156,6 +156,11 @@ ok('broken script -> 1 error', store && store.length === 1);
 ok('error message is japanese', store && /構文エラー/.test(store[0].message));
 diag.run(makeDoc('let x = 1;'));
 ok('ES5 rejects let', store && store.length === 1);
+// rtmjs 言語でも診断が効く
+const rtmDoc = makeDoc('function render(e){ if (e { } }');
+rtmDoc.languageId = 'rtmjs';
+diag.run(rtmDoc);
+ok('rtmjs language is diagnosed', store && store.length === 1);
 
 console.log('\n結果: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
