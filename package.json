@@ -1,0 +1,129 @@
+{
+  "name": "vscord-rtm",
+  "displayName": "RTM Script Helper (RealTrainMod)",
+  "description": "RealTrainMod の ES5(Rhino)スクリプトを書きやすくする補完・構文チェック拡張。1.12.2 / 1.7.10 を左サイドバーで切替。",
+  "version": "0.1.0",
+  "publisher": "vscord",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Snippets"
+  ],
+  "keywords": [
+    "RealTrainMod",
+    "RTM",
+    "NGTLib",
+    "KaizPatchX",
+    "Minecraft",
+    "Rhino"
+  ],
+  "activationEvents": [
+    "onLanguage:javascript",
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "RTM Script Helper",
+      "properties": {
+        "rtmScript.version": {
+          "type": "string",
+          "enum": [
+            "1.12.2",
+            "1.7.10"
+          ],
+          "default": "1.12.2",
+          "description": "補完・チェックに使う RTM のバージョン(左サイドバーからも切替可能)。"
+        },
+        "rtmScript.ecmaVersion": {
+          "type": "string",
+          "enum": [
+            "5",
+            "2015",
+            "2017"
+          ],
+          "default": "5",
+          "description": "構文チェックに使う ECMAScript バージョン。RTM/Rhino は基本 ES5。"
+        },
+        "rtmScript.enableDiagnostics": {
+          "type": "boolean",
+          "default": true,
+          "description": "構文エラーを赤で表示する。"
+        },
+        "rtmScript.activateOnlyInRtmScripts": {
+          "type": "boolean",
+          "default": false,
+          "description": "true のとき、importPackage / Packages / renderer などRTMらしい記述を含むファイルでのみ補完・チェックを有効化する。"
+        }
+      }
+    },
+    "configurationDefaults": {
+      "editor.tabCompletion": "on",
+      "[javascript]": {
+        "editor.tabCompletion": "on",
+        "editor.quickSuggestions": {
+          "other": true,
+          "comments": false,
+          "strings": true
+        },
+        "editor.suggestOnTriggerCharacters": true,
+        "editor.acceptSuggestionOnEnter": "on",
+        "editor.wordBasedSuggestions": "off"
+      }
+    },
+    "commands": [
+      {
+        "command": "rtmScript.setVersion1122",
+        "title": "RTM: バージョンを 1.12.2 に切替"
+      },
+      {
+        "command": "rtmScript.setVersion1710",
+        "title": "RTM: バージョンを 1.7.10 に切替"
+      },
+      {
+        "command": "rtmScript.toggleVersion",
+        "title": "RTM: バージョンを切替 (1.12.2 ⇄ 1.7.10)"
+      },
+      {
+        "command": "rtmScript.selectVersionItem",
+        "title": "RTM: このバージョンを選択"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "rtmScriptContainer",
+          "title": "RTM Script",
+          "icon": "media/rtm.svg"
+        }
+      ]
+    },
+    "views": {
+      "rtmScriptContainer": [
+        {
+          "id": "rtmVersionView",
+          "name": "バージョン切替"
+        },
+        {
+          "id": "rtmInfoView",
+          "name": "情報"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "rtmScript.toggleVersion",
+          "when": "view == rtmVersionView",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "dependencies": {
+    "acorn": "^8.16.0"
+  }
+}

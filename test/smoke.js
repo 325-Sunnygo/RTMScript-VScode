@@ -1,0 +1,104 @@
+'use strict';
+// vscode をスタブして主要ロジックを検証するスモークテスト。
+// 実行: node test/smoke.js
+const path = require('path');
+const Module = require('module');
+const STUB = path.join(__dirname, 'vscode-stub.js');
+const orig = Module._resolveFilename;
+Module._resolveFilename = function (req, ...a) {
+  if (req === 'vscode') return STUB;
+  return orig.call(this, req, ...a);
+};
+
+const vscode = require('vscode');
+const assert = require('assert');
+
+let pass = 0, fail = 0;
+function ok(name, cond) {
+  if (cond) { pass++; console.log('  ok  - ' + name); }
+  else { fail++; console.log('  FAIL- ' + name); }
+}
+
+// ---- apiIndex ----
+const { ApiIndex } = require('../src/apiIndex');
+const dataDir = path.join(__dirname, '..', 'data');
+const api1122 = new ApiIndex('1.12.2', dataDir);
+const api1710 = new ApiIndex('1.7.10', dataDir);
+ok('1.12.2 loads', api1122.ok && api1122.stats.classes > 100);
+ok('1.7.10 loads', api1710.ok && api1710.stats.classes > 100);
+ok('package resolve has render classes', api1122.resolvePackageNode('jp.ngt.rtm.render').classes.includes('Parts'));
+
+// ---- completion ----
+const { analyze, createProvider, resolveType, extractReceiver } = require('../src/completion');
+ok('analyze package', analyze('importPackage(Packages.jp.ngt.rtm.').type === 'package');
+ok('analyze new', analyze('new Part').type === 'new');
+ok('analyze member', analyze('renderer.regi').receiver === 'renderer');
+ok('analyze ident', analyze('var x = re').type === 'ident');
+
+const state = { current: () => api1122, versionName: () => '1.12.2' };
+const prov = createProvider(state, () => true);
+function mockDoc(line) { return { languageId: 'javascript', getText: () => line, lineAt: () => ({ text: line }) }; }
+function count(line) {
+  const r = prov.provideCompletionItems(mockDoc(line), { line: 0, character: line.length });
+  return r ? r.items.length : 0;
+}
+ok('package completions', count('importPackage(Packages.jp.ngt.rtm.') > 5);
+ok('new completions', count('new ') > 100);
+ok('member completions', count('renderer.') > 5);
+ok('ident completions', count('var x = re') > 100);
+
+// 1.7.10 に切替えたら候補が変わる
+const state2 = { current: () => api1710, versionName: () => '1.7.10' };
+const prov2 = createProvider(state2, () => true);
+function count2(line) {
+  const r = prov2.provideCompletionItems(mockDoc(line), { line: 0, character: line.length });
+  return r ? r.items.length : 0;
+}
+ok('1.7.10 obf differs from 1.12.2', api1710.stats.obf !== api1122.stats.obf);
+
+// ---- チェーン型解決 ----
+ok('extractReceiver chain', extractReceiver('body = ItemWithModel.getModelState(stack)') === 'ItemWithModel.getModelState(stack)');
+function chainHas(receiver, docText, member) {
+  const cls = resolveType(receiver, api1122, docText || '', 0);
+  return cls.length > 0 && cls.some(c => c.methods.some(m => m.name === member));
+}
+// クラス名 -> static 的呼び出し -> 戻り値の型 -> そのメンバー
+ok('ItemWithModel.getModelState(stack). -> getResourceName',
+  chainHas('ItemWithModel.getModelState(stack)', '', 'getResourceName'));
+// クラスそのもの.
+ok('ResourceState. -> getResourceName',
+  chainHas('ResourceState', '', 'getResourceName'));
+// 既知グローバル
+ok('renderer. -> registerParts',
+  chainHas('renderer', '', 'registerParts'));
+// ローカル変数の型推定: var s = ItemWithModel.getModelState(stack); s.
+ok('local var inference: s.getResourceName',
+  chainHas('s', 'var s = ItemWithModel.getModelState(stack);\ns.', 'getResourceName'));
+// 2段チェーン: getModelState(stack).getDataMap() -> DataMap が解決できること
+const twoStep = resolveType('ItemWithModel.getModelState(stack).getDataMap()', api1122, '', 0);
+ok('two-step chain resolves to DataMap', twoStep.length > 0 && twoStep[0].name === 'DataMap');
+
+// ---- diagnostics ----
+let store = null;
+vscode.languages.createDiagnosticCollection = () => ({ set: (uri, d) => { store = d; }, delete: () => { store = null; } });
+const { createDiagnostics } = require('../src/diagnostics');
+const cfg = () => ({ enableDiagnostics: true, ecmaVersion: '5', activateOnlyInRtmScripts: false });
+const diag = createDiagnostics(cfg, () => true);
+function makeDoc(text) {
+  const lines = text.split('\n');
+  return {
+    uri: 'u', languageId: 'javascript', getText: () => text, lineCount: lines.length,
+    lineAt: (l) => ({ text: lines[l] || '' }),
+    positionAt: (p) => ({ line: 0, character: p, translate(a, b) { return { line: 0, character: p + b }; } }),
+  };
+}
+diag.run(makeDoc('importPackage(Packages.jp.ngt.rtm.render);\nfunction init(p1,p2){ body = renderer.registerParts(new Parts("a")); }'));
+ok('valid script -> no error', store && store.length === 0);
+diag.run(makeDoc('function render(e){\n  if (e.getSpeed() > 0 {\n  }\n}'));
+ok('broken script -> 1 error', store && store.length === 1);
+ok('error message is japanese', store && /構文エラー/.test(store[0].message));
+diag.run(makeDoc('let x = 1;'));
+ok('ES5 rejects let', store && store.length === 1);
+
+console.log('\n結果: ' + pass + ' passed, ' + fail + ' failed');
+process.exit(fail ? 1 : 0);

@@ -1,0 +1,291 @@
+'use strict';
+/*
+ * completion.js
+ * RTM スクリプト向けの補完を提供する。state.current() で現在バージョンの ApiIndex を取得。
+ *
+ * 対応する状況:
+ *   1. Packages.xxx / importPackage(Packages.xxx  -> パッケージ階層 + クラス名
+ *   2. new Xxx                                    -> クラス名
+ *   3. obj.member / a.b().c().                     -> レシーバ式の型を解決してメンバー
+ *        - 既知グローバル(renderer/entity/...)は型を推定
+ *        - クラス名から static 的呼び出し (ItemWithModel.getModelState(stack))
+ *        - メソッドの戻り値の型をたどってチェーン (… .getModelState(stack).getResourceName())
+ *        - ローカル変数は var 代入を遡って型推定 (var s = ...; s.)
+ *        - 解決できない場合も全メソッド + func_ をフォールバックで出す
+ *   4. 通常の識別子                                -> クラス短縮名 / コールバック / Rhino組込み
+ */
+
+const vscode = require('vscode');
+const { KNOWN_GLOBALS, SCRIPT_CALLBACKS, RHINO_BUILTINS } = require('./apiIndex');
+
+const CK = vscode.CompletionItemKind;
+
+function makeItem(label, kind, detail, doc, insert, sortPrefix) {
+  const it = new vscode.CompletionItem(label, kind);
+  if (detail) it.detail = detail;
+  if (doc) it.documentation = new vscode.MarkdownString(doc);
+  if (insert !== undefined && insert !== null) it.insertText = insert;
+  if (sortPrefix) it.sortText = sortPrefix + label;
+  return it;
+}
+
+function methodSignature(m) {
+  return m.name + '(' + (m.params || []).join(', ') + ')' + (m.ret ? ': ' + m.ret : '');
+}
+
+// ---- レシーバ式の抽出 -------------------------------------------------------
+// 行頭側に向かって、メンバアクセスの対象(レシーバ)になる後置式を取り出す。
+// 例: 'body = ItemWithModel.getModelState(stack).' -> 'ItemWithModel.getModelState(stack)'
+function extractReceiver(textBeforeDot) {
+  let i = textBeforeDot.length - 1;
+  let depth = 0;
+  // 末尾の空白を無視
+  while (i >= 0 && /\s/.test(textBeforeDot[i]) && depth === 0) i--;
+  const end = i + 1;
+  for (; i >= 0; i--) {
+    const ch = textBeforeDot[i];
+    if (ch === ')' || ch === ']') { depth++; continue; }
+    if (ch === '(' || ch === '[') {
+      if (depth === 0) break; // レシーバの開始境界
+      depth--; continue;
+    }
+    if (depth > 0) continue; // 括弧の中は何でも許容
+    if (/[A-Za-z0-9_$.#]/.test(ch)) continue;
+    break;
+  }
+  return textBeforeDot.slice(i + 1, end).trim();
+}
+
+// トップレベル(括弧の外)のドットでチェーンを分割
+function splitTopLevelDots(expr) {
+  const parts = [];
+  let depth = 0, cur = '', str = null;
+  for (let i = 0; i < expr.length; i++) {
+    const ch = expr[i];
+    if (str) { cur += ch; if (ch === str && expr[i - 1] !== '\\') str = null; continue; }
+    if (ch === '"' || ch === "'") { str = ch; cur += ch; continue; }
+    if (ch === '(' || ch === '[') { depth++; cur += ch; continue; }
+    if (ch === ')' || ch === ']') { depth--; cur += ch; continue; }
+    if (ch === '.' && depth === 0) { parts.push(cur); cur = ''; continue; }
+    cur += ch;
+  }
+  if (cur) parts.push(cur);
+  return parts;
+}
+
+function leadingIdent(tok) {
+  const m = tok.match(/^\s*([A-Za-z_$][\w$]*)/);
+  return m ? m[1] : '';
+}
+
+// ---- 型解決 -----------------------------------------------------------------
+// レシーバ式 -> 候補クラス配列(api の class オブジェクト)を返す。解決失敗なら []
+function resolveType(receiver, api, docText, depth) {
+  if (!receiver || depth > 6) return [];
+  receiver = receiver.replace(/#/g, '.').trim();
+  const tokens = splitTopLevelDots(receiver);
+  if (!tokens.length) return [];
+
+  let classes = resolveBase(tokens[0], api, docText, depth);
+  if (!classes.length) return [];
+
+  for (let i = 1; i < tokens.length; i++) {
+    const tok = tokens[i];
+    const name = leadingIdent(tok);
+    if (!name) return [];
+    const isCall = /\(/.test(tok);
+    let nextTypeName = null;
+    for (const c of classes) {
+      if (!c) continue;
+      if (isCall) {
+        const m = (c.methods || []).find(x => x.name === name);
+        if (m && m.ret) { nextTypeName = m.ret; break; }
+      } else {
+        // 括弧なし: フィールド優先、なければゲッターメソッドとして許容
+        const f = (c.fields || []).find(x => x.name === name);
+        if (f && f.type) { nextTypeName = f.type; break; }
+        const m = (c.methods || []).find(x => x.name === name);
+        if (m && m.ret) { nextTypeName = m.ret; break; }
+      }
+    }
+    if (!nextTypeName) return []; // チェーンが途切れたらフォールバックへ
+    const nc = api.findClass(stripType(nextTypeName));
+    if (!nc) return [];
+    classes = [nc];
+  }
+  return classes;
+}
+
+// "List<Foo>" や "Foo[]" を "Foo" に
+function stripType(t) {
+  return (t || '').replace(/<[^>]*>/g, '').replace(/\[\]/g, '').trim();
+}
+
+function resolveBase(baseTok, api, docText, depth) {
+  const base = baseTok.trim();
+
+  // new Foo(...)
+  let m = base.match(/^new\s+([\w.$]+)/);
+  if (m) { const c = api.findClass(stripType(m[1])); return c ? [c] : []; }
+
+  const ident = leadingIdent(base);
+  const hasCall = /\(/.test(base);
+
+  // 既知グローバル(renderer / entity / dataMap / formation / scriptExecuter / su / world)
+  if (!hasCall && KNOWN_GLOBALS[ident]) {
+    return KNOWN_GLOBALS[ident].map(f => api.getClass(f)).filter(Boolean);
+  }
+
+  // クラス名(static 的呼び出し: ItemWithModel.getModelState(...))
+  if (!hasCall) {
+    const c = api.findClass(ident);
+    if (c) return [c];
+  }
+
+  // ローカル変数: var ident = <rhs>; を遡って型推定
+  if (!hasCall && docText) {
+    const rhs = findLastAssignment(docText, ident);
+    if (rhs) {
+      const t = resolveType(rhs, api, docText, depth + 1);
+      if (t.length) return t;
+    }
+  }
+
+  // トップレベル関数呼び出し等は解決不能
+  return [];
+}
+
+// docText から `var ident = RHS;` または `ident = RHS;` の最後の代入の RHS を返す
+function findLastAssignment(docText, ident) {
+  const re = new RegExp('(?:var\\s+)?' + ident.replace(/[$]/g, '\\$') + '\\s*=\\s*([^;\\n]+)', 'g');
+  let m, last = null;
+  while ((m = re.exec(docText)) !== null) last = m[1];
+  return last ? last.trim() : null;
+}
+
+// ---- 状況判定 ---------------------------------------------------------------
+function analyze(linePrefix) {
+  let m = linePrefix.match(/(?:importPackage\s*\(\s*)?Packages\.([\w.]*)$/);
+  if (m) return { type: 'package', raw: m[1] };
+
+  m = linePrefix.match(/\bnew\s+([\w$]*)$/);
+  if (m) return { type: 'new', prefix: m[1] };
+
+  // メンバアクセス: 末尾が <式>.<部分メンバ名>
+  m = linePrefix.match(/^(.*)\.([A-Za-z_$][\w$]*)?$/);
+  if (m) {
+    const receiver = extractReceiver(m[1]);
+    if (receiver) return { type: 'member', receiver, prefix: m[2] || '' };
+  }
+
+  m = linePrefix.match(/([\w$]*)$/);
+  return { type: 'ident', prefix: m ? m[1] : '' };
+}
+
+// ---- 補完生成 ---------------------------------------------------------------
+function buildPackageCompletions(api, raw) {
+  const endsDot = raw.endsWith('.');
+  const base = endsDot ? raw.slice(0, -1) : raw.split('.').slice(0, -1).join('.');
+  const node = api.resolvePackageNode(base);
+  const items = [];
+  for (const child of node.children) items.push(makeItem(child, CK.Module, 'package', null, child, '0'));
+  for (const cls of node.classes) items.push(makeItem(cls, CK.Class, base + '.' + cls, null, cls, '1'));
+  return items;
+}
+
+function buildClassCompletions(api, limit) {
+  const items = [];
+  for (const [short, fqns] of api.classShortNames) {
+    const fqn = fqns[0];
+    const doc = fqns.length > 1 ? '候補:\n' + fqns.map(f => '- `' + f + '`').join('\n') : '`' + fqn + '`';
+    items.push(makeItem(short, CK.Class, fqn, doc, short, '3'));
+    if (limit && items.length >= limit) break;
+  }
+  return items;
+}
+
+// 解決済みクラス配列を優先表示しつつ、横断プール + 難読をフォールバックで付ける
+function buildMemberCompletions(api, resolvedClasses) {
+  const items = [];
+  const seen = new Set();
+  const add = (label, kind, detail, doc, sort) => {
+    const key = kind + '|' + label;
+    if (seen.has(key)) return; seen.add(key);
+    items.push(makeItem(label, kind, detail, doc, label, sort));
+  };
+
+  // 1) 型が解決できたクラスのメンバー(最優先)
+  for (const c of resolvedClasses) {
+    if (!c) continue;
+    for (const m of c.methods || []) add(m.name, CK.Method, methodSignature(m), '`' + c.name + '` のメソッド', '0');
+    for (const f of c.fields || []) add(f.name, CK.Field, f.name + ': ' + f.type, '`' + c.name + '` のフィールド', '1');
+  }
+
+  // 2) 横断プール(前方一致で絞られる)
+  for (const [name, e] of api.memberPool) {
+    if (e.kind === 'method') add(name, CK.Method, methodSignature(e), '所属: ' + e.owners.slice(0, 4).join(', '), '5');
+    else add(name, CK.Field, name + ': ' + (e.type || ''), '所属: ' + e.owners.slice(0, 4).join(', '), '6');
+  }
+
+  // 3) 難読メソッド/フィールド
+  for (const fm of api.obfMethods) {
+    const owners = api.memberOwners[fm];
+    add(fm, CK.Method, '難読メソッド', owners ? '使用箇所: ' + owners.slice(0, 4).join(', ') : null, '7');
+  }
+  for (const ff of api.obfFields) add(ff, CK.Field, '難読フィールド', null, '8');
+
+  return items;
+}
+
+function buildIdentCompletions(api) {
+  const items = [];
+  for (const cb of SCRIPT_CALLBACKS) {
+    const snip = new vscode.SnippetString('function ' + cb.name + '(' + cb.params.map((p, i) => '${' + (i + 1) + ':' + p + '}').join(', ') + ') {\n\t$0\n}');
+    const it = makeItem(cb.name, CK.Function, 'RTM コールバック', cb.doc, snip, '0');
+    items.push(it);
+  }
+  for (const b of RHINO_BUILTINS) {
+    const it = makeItem(b.name, CK.Keyword, 'Rhino/Nashorn', b.doc, new vscode.SnippetString(b.insert), '1');
+    items.push(it);
+  }
+  for (const g of Object.keys(KNOWN_GLOBALS)) {
+    items.push(makeItem(g, CK.Variable, 'RTM グローバル: ' + KNOWN_GLOBALS[g][0], 'スクリプトに渡される組込みオブジェクト', g, '2'));
+  }
+  for (const it of buildClassCompletions(api, 4000)) items.push(it);
+  return items;
+}
+
+function createProvider(state, shouldActivate) {
+  return {
+    provideCompletionItems(document, position) {
+      if (!shouldActivate(document)) return undefined;
+      const api = state.current();
+      if (!api || !api.ok) return undefined;
+
+      const linePrefix = document.lineAt(position).text.slice(0, position.character);
+      const ctx = analyze(linePrefix);
+
+      let items = [];
+      switch (ctx.type) {
+        case 'package':
+          items = buildPackageCompletions(api, ctx.raw);
+          break;
+        case 'new':
+          items = buildClassCompletions(api, 4000);
+          break;
+        case 'member': {
+          const docText = document.getText();
+          const resolved = resolveType(ctx.receiver, api, docText, 0);
+          items = buildMemberCompletions(api, resolved);
+          break;
+        }
+        default:
+          items = buildIdentCompletions(api);
+          break;
+      }
+      return new vscode.CompletionList(items, false);
+    },
+  };
+}
+
+module.exports = { createProvider, analyze, resolveType, extractReceiver, splitTopLevelDots };
