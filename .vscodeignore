@@ -1,5 +1,10 @@
 .vscode/**
 tools/**
+test/**
 **/*.map
 .gitignore
-test/**
+.vscodeignore
+media/icon-source.svg
+*.vsix
+.claude/**
+package-lock.json

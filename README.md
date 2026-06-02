@@ -1,39 +1,78 @@
-# RTM Script Helper (vscord-rtm)
+# RTM Script Helper
 
-RealTrainMod (RTM) のモデルパック用 **ES5 / Rhino スクリプト**を VSCode で書きやすくする拡張機能です。
+RealTrainMod (RTM) のモデルパック用 ES5 / Rhino スクリプトを VSCode で書きやすくする拡張機能です。
 
-- 🔴 **構文ミスを赤で表示** — ES5 として解析し、文法エラーに波線を出します
-- ⌨️ **補完候補** — RTM / NGTLib のクラス・メソッド、難読メソッド (`func_xxxxx_x`)、`importPackage`、`init` / `render` / `onUpdate` などのコールバックを候補に
-- ⇥ **Tab で補完確定** — 候補が出ている状態で Tab（または Enter）で確定
-- 🔀 **左サイドバーで 1.12.2 / 1.7.10 を切替** — 切替えると補完候補がそのバージョンの API に切り替わります
+- 構文ミスを赤い波線で表示します(ES5 として解析)
+- RTM / NGTLib のクラス・メソッド、難読メソッド (`func_xxxxx_x`)、`importPackage`、`init` / `render` / `onUpdate` などのコールバックを補完します
+- メソッドの戻り値の型をたどって、チェーンの続きを補完します
+- 左サイドバーで 1.12.2 / 1.7.10 を切り替えると、補完候補がそのバージョンの API に変わります
 
-補完データは、お手元のデコンパイル済みソースから生成しています:
+補完データは、それぞれ次のソースから生成しています。
 
 | バージョン | 生成元 |
 |---|---|
-| **1.12.2** | `RTM2.4.24-43_forge-1.12.2` + `NGTLib2.4.21-38_forge-1.12.2`(デコンパイル) |
-| **1.7.10** | `KaizPatchX-master`(ソース) |
+| 1.12.2 | RTM 2.4.24 (forge-1.12.2) + NGTLib 2.4.21 |
+| 1.7.10 | KaizPatchX |
 
 ---
 
-## 使い方(デバッグ実行)
+## 使い方
 
-1. このフォルダ (`vscord_rtm`) を VSCode で開く
-2. 依存をインストール
-   ```bash
-   npm install
-   ```
-3. `F5`(または「実行とデバッグ」→「拡張機能を実行」)を押す
-   → 拡張機能がロードされた新しい VSCode ウィンドウが開きます
-4. その新ウィンドウで RTM の `.js` スクリプトを開く
-5. 左端のアクティビティバーに **🚆 RTM Script** アイコンが出ます。ここで **1.12.2 / 1.7.10 を切替**
+### バージョンの切り替え
 
-> Tab 補完を確実にしたい場合は、設定 `editor.tabCompletion` を `on` にしておくと、
-> 候補が無いときでも単語の Tab 補完が効きます(候補表示中はデフォルトで Tab/Enter 確定できます)。
+左端のアクティビティバーにある **RTM Script** アイコンを開くと、バージョン切り替えビューがあります。
+**1.12.2** / **1.7.10** をクリックすると、補完・構文チェックがそのバージョンに切り替わります
+(右下のステータスバーの `RTM 1.12.2` をクリックしても切り替わります)。
 
+### 補完
+
+入力すると候補が自動で表示されます。**Tab** または **Enter** で確定します。
+
+| 入力中の状況 | 出る候補 |
+|---|---|
+| `importPackage(Packages.jp.ngt.rtm.` | パッケージ階層 + クラス名 |
+| `new Pa` | クラス名(`Parts` など) |
+| `renderer.` | `VehiclePartsRenderer` のメソッド(`registerParts` など)+ 全メソッド + 難読メソッド |
+| `entity.` | `EntityTrainBase` / `EntityVehicleBase` のメソッド + 難読メソッド |
+| `dataMap.` `formation.` `scriptExecuter.`(`su.`) | それぞれの型のメンバー |
+| 行頭など通常位置 | `init` / `render` / `onUpdate` スニペット、`importPackage`、グローバル変数、クラス名 |
+
+`renderer` / `entity` / `dataMap` / `formation` / `scriptExecuter`(`su`)/ `world` は
+RTM がスクリプトに渡す組込みオブジェクトとして型を推定し、優先的に候補へ出します。
+
+### チェーン補完(戻り値の型をたどる)
+
+メソッドの戻り値の型を自動で判別し、その続きを補完します。
+
+```js
+ItemWithModel.getModelState(stack).getResourceName()
+//             ^ ResourceState を返すと判別     ^ ResourceState のメソッドが候補に出る
+```
+
+ローカル変数も `var s = ...;` の代入を遡って型を推定します。
+
+```js
+var state = ItemWithModel.getModelState(stack);
+state.    // ResourceState のメソッドが候補に出る
+```
+
+### 構文チェック
+
+ES5 として解析し、文法エラーを赤い波線で表示します。
+例えば ES5 では `let` / `const` が使えないため、これらを書くとエラーになります。
+
+### 設定
+
+| キー | 既定 | 説明 |
+|---|---|---|
+| `rtmScript.version` | `1.12.2` | 補完・チェックに使うバージョン(サイドバーからも変更可) |
+| `rtmScript.ecmaVersion` | `5` | 構文チェックの ECMAScript バージョン。RTM は基本 ES5 |
+| `rtmScript.enableDiagnostics` | `true` | 構文エラーの赤表示 ON/OFF |
+| `rtmScript.activateOnlyInRtmScripts` | `false` | `true` で、RTM らしい記述を含む `.js` のみ有効化 |
+
+---
 
 ## 注意
 
-- 構文チェックは **構文(文法)のみ**で、未定義変数の検出はしません(Rhino の `importPackage` などで
-  実行時に注入される変数を誤検知しないため)。
+- 構文チェックは文法のみで、未定義変数の検出はしません(Rhino の `importPackage` などで実行時に注入される変数を誤検知しないため)。
 - `func_…` 難読メソッドは「ソース中での使用箇所」から収集しているため、所属クラスは目安です。

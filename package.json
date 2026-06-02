@@ -4,8 +4,22 @@
   "description": "RealTrainMod の ES5(Rhino)スクリプトを書きやすくする補完・構文チェック拡張。1.12.2 / 1.7.10 を左サイドバーで切替。",
   "version": "0.1.0",
   "publisher": "vscord",
+  "license": "MIT",
+  "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.75.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/325-Sunnygo/RTMScript-VScode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/325-Sunnygo/RTMScript-VScode/issues"
+  },
+  "homepage": "https://github.com/325-Sunnygo/RTMScript-VScode#readme",
+  "galleryBanner": {
+    "color": "#1f2a44",
+    "theme": "dark"
   },
   "categories": [
     "Programming Languages",
