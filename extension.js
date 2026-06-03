@@ -14,7 +14,7 @@ const { VersionTreeProvider, InfoTreeProvider, VERSIONS } = require('./src/versi
 const { looksLikeRtmScript } = require('./src/detect');
 const { createSignatureProvider } = require('./src/signature');
 const { createHoverProvider } = require('./src/hover');
-const { TEMPLATES, CHEATSHEET } = require('./src/knowledge');
+const { TEMPLATES, NEW_SCRIPT_TYPES, CHEATSHEET } = require('./src/knowledge');
 
 function activate(context) {
   const dataDir = path.join(context.extensionPath, 'data');
@@ -136,22 +136,30 @@ function activate(context) {
   );
 
   // ---- スクリプト雛形の挿入 -------------------------------------------------
-  async function insertTemplate(kind) {
-    const tpl = TEMPLATES[kind];
-    if (!tpl) return;
-    let editor = vscode.window.activeTextEditor;
-    // アクティブな JS が無ければ新規ファイルを作る
-    if (!editor || editor.document.languageId !== 'javascript') {
-      const doc = await vscode.workspace.openTextDocument({ language: 'javascript', content: tpl });
+  async function insertContent(content) {
+    if (!content) return;
+    const editor = vscode.window.activeTextEditor;
+    const isScript = editor && (editor.document.languageId === 'javascript' || editor.document.languageId === 'rtmjs');
+    // アクティブなスクリプトが無ければ新規ファイル(RTM 専用モード)を作る
+    if (!isScript) {
+      const doc = await vscode.workspace.openTextDocument({ language: 'rtmjs', content });
       await vscode.window.showTextDocument(doc);
       return;
     }
-    await editor.edit(eb => eb.insert(editor.selection.active, tpl));
+    await editor.edit(eb => eb.insert(editor.selection.active, content));
   }
   context.subscriptions.push(
-    vscode.commands.registerCommand('rtmScript.newRenderScript', () => insertTemplate('render')),
-    vscode.commands.registerCommand('rtmScript.newServerScript', () => insertTemplate('server')),
-    vscode.commands.registerCommand('rtmScript.newSoundScript', () => insertTemplate('sound'))
+    vscode.commands.registerCommand('rtmScript.newRenderScript', () => insertContent(TEMPLATES.render)),
+    vscode.commands.registerCommand('rtmScript.newServerScript', () => insertContent(TEMPLATES.server)),
+    vscode.commands.registerCommand('rtmScript.newSoundScript', () => insertContent(TEMPLATES.sound)),
+    // 種類を選んで新規作成(全スクリプト種別)
+    vscode.commands.registerCommand('rtmScript.newScript', async () => {
+      const pick = await vscode.window.showQuickPick(
+        NEW_SCRIPT_TYPES.map(t => ({ label: t.label, detail: t.detail, content: t.content })),
+        { placeHolder: '作成する RTM スクリプトの種類を選択', matchOnDetail: true }
+      );
+      if (pick) await insertContent(pick.content);
+    })
   );
 
   // ---- RTM 専用言語モード ---------------------------------------------------

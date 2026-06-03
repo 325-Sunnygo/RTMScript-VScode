@@ -154,15 +154,126 @@ function onUpdate(su) {
 `,
 };
 
+// ---- 新規スクリプト作成(種類を選ぶ)----------------------------------------
+// 描画系(init/render)は renderClass 違いだけなので雛形を生成。
+function renderSkeleton(renderClass, part) {
+  return 'var renderClass = "' + renderClass + '";\n' +
+    'importPackage(Packages.org.lwjgl.opengl);            // GL11\n' +
+    'importPackage(Packages.jp.ngt.rtm.render);           // Parts\n' +
+    'importPackage(Packages.jp.ngt.ngtlib.renderer);      // GLHelper\n' +
+    'importPackage(Packages.jp.ngt.ngtlib.renderer.model);\n\n' +
+    'function init(par1, par2) {\n' +
+    '    ' + part + ' = renderer.registerParts(new Parts("' + part + '"));\n' +
+    '}\n\n' +
+    'function render(entity, pass, par3) {\n' +
+    '    if (pass != 0) return;\n' +
+    '    GL11.glPushMatrix();\n' +
+    '    ' + part + '.render(renderer);\n' +
+    '    GL11.glPopMatrix();\n' +
+    '}\n';
+}
+
+const GUI_TEMPLATE = `var renderClass = "jp.ngt.rtm.render.VehiclePartsRenderer";
+importPackage(Packages.org.lwjgl.opengl);            // GL11
+
+// 車内の GUI / LCD モニタを描画。vehicle=車両, gui=GUI
+function renderGui(vehicle, gui) {
+    GL11.glPushMatrix();
+    // ここに計器/モニタ/行先表示などの描画
+    GL11.glPopMatrix();
+}
+`;
+
+const RAIL_TEMPLATE = `var renderClass = "jp.ngt.rtm.render.RailPartsRenderer";
+importPackage(Packages.org.lwjgl.opengl);
+importPackage(Packages.jp.ngt.rtm.render);
+importPackage(Packages.jp.ngt.ngtlib.renderer.model);
+
+function init(par1, par2) {
+    rail = renderer.registerParts(new Parts("rail"));
+}
+
+// 静的描画(設置時にベイク)
+function renderRailStatic(rail, x, y, z, partialTick, light) {
+    rail.render(renderer);
+}
+
+// 動的描画(毎フレーム)
+function renderRailDynamic(rail, x, y, z, partialTick, light) {
+}
+`;
+
+const RAILSHAPE_TEMPLATE = `// カスタムレール形状。レールの曲線・高さ・傾きを数式で定義する。
+// split = 分割数, index = 0..split の位置。
+
+function getDefaultArgs() {
+    return "20"; // 既定の引数(例: 長さ)
+}
+function getLength() {
+    return 20.0; // レール全長(ブロック)
+}
+function getNearlestPoint(split, x, z) {
+    return Math.round(x / getLength() * split); // (x,z)に最も近い分割
+}
+function getPos(split, index) {
+    var t = index / split;
+    return [t * getLength(), 0.0, 0.0]; // [x, y, z]
+}
+function getHeight(split, index) {
+    return 0.0;
+}
+function getYaw(split, index) {
+    return 0.0; // 度
+}
+function getPitch(split, index) {
+    return 0.0;
+}
+function getRoll(split, index) {
+    return 0.0;
+}
+`;
+
+const WIRE_TEMPLATE = `var renderClass = "jp.ngt.rtm.render.WirePartsRenderer";
+importPackage(Packages.org.lwjgl.opengl);
+importPackage(Packages.jp.ngt.rtm.render);
+
+function renderWireStatic(wire, x, y, z, partialTick, light) {
+}
+function renderWireDynamic(wire, x, y, z, partialTick, light) {
+}
+`;
+
+// QuickPick 用: ラベル / 説明 / 中身
+const NEW_SCRIPT_TYPES = [
+  { label: 'Vehicle 描画 (車両)', detail: 'init/render + VehiclePartsRenderer', content: renderSkeleton('jp.ngt.rtm.render.VehiclePartsRenderer', 'body') },
+  { label: 'Signal 描画 (信号)', detail: 'init/render + SignalPartsRenderer', content: renderSkeleton('jp.ngt.rtm.render.SignalPartsRenderer', 'signal') },
+  { label: 'Ornament 描画 (装飾)', detail: 'init/render + OrnamentPartsRenderer', content: renderSkeleton('jp.ngt.rtm.render.OrnamentPartsRenderer', 'body') },
+  { label: 'NPC 描画', detail: 'init/render + NPCPartsRenderer', content: renderSkeleton('jp.ngt.rtm.render.NPCPartsRenderer', 'body') },
+  { label: 'Firearm 描画 (銃)', detail: 'init/render + FirearmPartsRenderer', content: renderSkeleton('jp.ngt.rtm.render.FirearmPartsRenderer', 'body') },
+  { label: 'Machine 描画 (機械)', detail: 'init/render + MachinePartsRenderer', content: renderSkeleton('jp.ngt.rtm.render.MachinePartsRenderer', 'body') },
+  { label: 'Server (サーバー / onUpdate)', detail: 'onUpdate(entity, scriptExecuter)', content: TEMPLATES.server },
+  { label: 'Sound (効果音)', detail: 'onUpdate(su)', content: TEMPLATES.sound },
+  { label: 'GUI / LCD (renderGui)', detail: 'renderGui(vehicle, gui)', content: GUI_TEMPLATE },
+  { label: 'Rail 描画 (renderRail)', detail: 'renderRailStatic / renderRailDynamic', content: RAIL_TEMPLATE },
+  { label: 'Rail カスタム形状 (getPos 等)', detail: 'getPos / getYaw / getLength …', content: RAILSHAPE_TEMPLATE },
+  { label: 'Wire / 架線 (renderWire)', detail: 'renderWireStatic / renderWireDynamic', content: WIRE_TEMPLATE },
+];
+
 // ---- API チートシート(コマンドで開く)------------------------------------
 const CHEATSHEET = `# RTM スクリプト API チートシート
 
 ## スクリプトの種類と入口関数
-- **Render**: \`function init(par1, par2)\` でパーツ登録 → \`function render(entity, pass, par3)\` で毎フレーム描画(\`pass==0\` が通常)
-- **Server**: \`function onUpdate(entity, scriptExecuter)\`
-- **Sound**: \`function onUpdate(su)\`(su = ScriptExecuter)
+- **Render(車両/信号/装飾/NPC/銃/機械)**: \`init(par1, par2)\` でパーツ登録 → \`render(entity, pass, par3)\` で毎フレーム描画(\`pass==0\` が通常)。\`shouldRenderObject(entity, pass)\` で描画可否。
+- **Server**: \`onUpdate(entity, scriptExecuter)\`
+- **Sound**: \`onUpdate(su)\`(su = ScriptExecuter)
+- **GUI / LCD**: \`renderGui(vehicle, gui)\`
+- **Rail 描画**: \`renderRailStatic(rail, x, y, z, partialTick, light)\` / \`renderRailDynamic(...)\`
+- **Rail カスタム形状**: \`getLength()\` / \`getPos(split, index)\`→[x,y,z] / \`getYaw|getPitch|getRoll|getHeight(split, index)\` / \`getNearlestPoint(split, x, z)\` / \`getDefaultArgs()\`
+- **Wire / 架線**: \`renderWireStatic(...)\` / \`renderWireDynamic(...)\`
+- **操作**: \`onRightClick(entity, player)\` / \`onRightDrag(entity, player)\`
 
-雛形はコマンドパレットの「RTM: ◯◯ スクリプトの雛形を挿入」、または \`rtm-render-file\` などのスニペットで挿入できます。
+コマンドパレットの「**RTM: 新規スクリプト(種類を選んで作成)**」で全種類から選んで雛形を挿入できます。
+個別パターンは \`rtm-\` で始まるスニペット(\`rtm-render-file\` / \`rtm-renderrail\` / \`rtm-rendergui\` / \`rtm-railshape\` など)。
 
 ## renderer(描画)
 先頭の \`var renderClass = "jp.ngt.rtm.render.VehiclePartsRenderer";\` で型が決まります。
@@ -201,4 +312,4 @@ const CHEATSHEET = `# RTM スクリプト API チートシート
 \`rtm-import-render\` / \`rtm-import-server\`
 `;
 
-module.exports = { GL11_METHODS, GL11_CONSTANTS, OBF_MEANING_1122, SCRIPT_GLOBALS, TEMPLATES, CHEATSHEET };
+module.exports = { GL11_METHODS, GL11_CONSTANTS, OBF_MEANING_1122, SCRIPT_GLOBALS, TEMPLATES, NEW_SCRIPT_TYPES, CHEATSHEET };

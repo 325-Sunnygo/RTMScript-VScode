@@ -68,6 +68,50 @@
     "description": "onUpdate(entity, scriptExecuter)",
     "body": ["function onUpdate(entity, scriptExecuter) {", "\t$0", "}"]
   },
+  "RTM renderGui 関数(GUI/LCD)": {
+    "prefix": "rtm-rendergui",
+    "description": "renderGui(vehicle, gui) — 車内GUI/LCD描画",
+    "body": ["function renderGui(vehicle, gui) {", "\tGL11.glPushMatrix();", "\t$0", "\tGL11.glPopMatrix();", "}"]
+  },
+  "RTM レール描画関数": {
+    "prefix": "rtm-renderrail",
+    "description": "renderRailStatic / renderRailDynamic",
+    "body": [
+      "function renderRailStatic(rail, x, y, z, partialTick, light) {",
+      "\t${1:rail}.render(renderer);",
+      "}",
+      "function renderRailDynamic(rail, x, y, z, partialTick, light) {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "RTM 架線描画関数": {
+    "prefix": "rtm-renderwire",
+    "description": "renderWireStatic / renderWireDynamic",
+    "body": [
+      "function renderWireStatic(wire, x, y, z, partialTick, light) {",
+      "\t$0",
+      "}",
+      "function renderWireDynamic(wire, x, y, z, partialTick, light) {",
+      "}"
+    ]
+  },
+  "RTM カスタムレール形状一式": {
+    "prefix": "rtm-railshape",
+    "description": "getPos / getYaw / getLength などのレール形状定義",
+    "body": [
+      "function getLength() { return ${1:20.0}; }",
+      "function getNearlestPoint(split, x, z) { return Math.round(x / getLength() * split); }",
+      "function getPos(split, index) {",
+      "\tvar t = index / split;",
+      "\treturn [t * getLength(), 0.0, 0.0]; // [x, y, z]",
+      "}",
+      "function getHeight(split, index) { return 0.0; }",
+      "function getYaw(split, index) { return 0.0; }",
+      "function getPitch(split, index) { return 0.0; }",
+      "function getRoll(split, index) { return 0.0; }"
+    ]
+  },
 
   "RTM パーツ登録": {
     "prefix": "rtm-part",

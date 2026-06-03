@@ -92,13 +92,20 @@ state.    // ResourceState のメソッドが候補に出る
 カーソルを乗せると、シグネチャや意味の説明が出ます。難読名(`func_…` / `field_…`)は
 よく使うものに読める意味(例: `field_70177_z` → rotationYaw)が付きます。
 
-### スクリプト雛形の挿入
+### スクリプト雛形の挿入(全種類)
 
-コマンドパレット(`Cmd/Ctrl+Shift+P`)で次を実行すると、正しい形の雛形を挿入します。
+コマンドパレット(`Cmd/Ctrl+Shift+P`)で **`RTM: 新規スクリプト(種類を選んで作成)`** を実行すると、
+次の全種類から選んで雛形を挿入できます。
 
-- `RTM: Render スクリプトの雛形を挿入`
-- `RTM: Server スクリプトの雛形を挿入`
-- `RTM: Sound スクリプトの雛形を挿入`
+- Vehicle(車両)/ Signal(信号)/ Ornament(装飾)/ NPC / Firearm(銃)/ Machine(機械) … `init` + `render`
+- Server … `onUpdate(entity, scriptExecuter)`
+- Sound … `onUpdate(su)`
+- GUI / LCD … `renderGui(vehicle, gui)`
+- Rail 描画 … `renderRailStatic` / `renderRailDynamic`
+- Rail カスタム形状 … `getPos` / `getYaw` / `getLength` …
+- Wire / 架線 … `renderWireStatic` / `renderWireDynamic`
+
+個別に挿入する `RTM: Render/Server/Sound スクリプトの雛形を挿入` もあります。
 
 ### 定番パターンのスニペット
 

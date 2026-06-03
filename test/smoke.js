@@ -52,6 +52,15 @@ function itemsFor(line) {
   const r = prov.provideCompletionItems(mockDoc(line), { line: 0, character: line.length });
   return r ? r.items : [];
 }
+// 全スクリプト種別のコールバックが候補に出る
+const { NEW_SCRIPT_TYPES } = require('../src/knowledge');
+ok('NEW_SCRIPT_TYPES covers >=10 types', NEW_SCRIPT_TYPES.length >= 10);
+ok('every script type has content', NEW_SCRIPT_TYPES.every(t => t.content && t.content.length > 20));
+const allIdent = itemsFor('');
+for (const cb of ['render', 'renderGui', 'renderRailStatic', 'renderWireDynamic', 'getPos', 'getYaw', 'onRightClick']) {
+  ok('callback suggested: ' + cb, allIdent.some(i => i.label === cb));
+}
+
 const identItems = itemsFor('ini');
 const initItem = identItems.find(i => i.label === 'init');
 ok('callback init inserts plain name (not snippet)',

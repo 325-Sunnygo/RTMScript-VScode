@@ -23,12 +23,34 @@ const KNOWN_GLOBALS = {
   world: ['net.minecraft.world.World'],
 };
 
-// RTM スクリプトが実装する代表的なコールバック関数(スニペット候補)。
+// RTM スクリプトが実装するコールバック関数(全種類)。RTM 本体が名前で呼び出す。
 const SCRIPT_CALLBACKS = [
+  // 描画(共通)
   { name: 'init', params: ['par1', 'par2'], doc: '描画スクリプト初期化。renderer.registerParts(...) でパーツ登録。' },
   { name: 'render', params: ['entity', 'pass', 'par3'], doc: '毎フレーム描画。pass==0 が通常描画。' },
-  { name: 'onUpdate', params: ['entity', 'scriptExecuter'], doc: 'サーバー側 tick 更新。entity と ScriptExecuter を受け取る。' },
-  { name: 'playSound', params: ['entity', 'scriptExecuter'], doc: '効果音スクリプト用。' },
+  { name: 'shouldRenderObject', params: ['entity', 'pass'], doc: '描画するか判定(true で描画)。' },
+  // サーバー
+  { name: 'onUpdate', params: ['entity', 'scriptExecuter'], doc: 'サーバー側 tick 更新(Sound では引数 su = ScriptExecuter)。' },
+  // 操作
+  { name: 'onRightClick', params: ['entity', 'player'], doc: '右クリック時。' },
+  { name: 'onRightDrag', params: ['entity', 'player'], doc: '右ドラッグ時。' },
+  // GUI / LCD
+  { name: 'renderGui', params: ['vehicle', 'gui'], doc: '車内 GUI / LCD モニタの描画。' },
+  // レール描画
+  { name: 'renderRailStatic', params: ['rail', 'x', 'y', 'z', 'partialTick', 'light'], doc: 'レール静的描画(設置時にベイク)。' },
+  { name: 'renderRailDynamic', params: ['rail', 'x', 'y', 'z', 'partialTick', 'light'], doc: 'レール動的描画(毎フレーム)。' },
+  // 架線描画
+  { name: 'renderWireStatic', params: ['wire', 'x', 'y', 'z', 'partialTick', 'light'], doc: '架線の静的描画。' },
+  { name: 'renderWireDynamic', params: ['wire', 'x', 'y', 'z', 'partialTick', 'light'], doc: '架線の動的描画。' },
+  // カスタムレール形状(曲線/高さを数式で定義)
+  { name: 'getDefaultArgs', params: [], doc: 'カスタムレールの既定引数(文字列)を返す。' },
+  { name: 'getLength', params: [], doc: 'カスタムレールの全長を返す(double)。' },
+  { name: 'getNearlestPoint', params: ['split', 'x', 'z'], doc: '(x,z) に最も近い分割インデックスを返す(int)。' },
+  { name: 'getPos', params: ['split', 'index'], doc: '分割位置の座標 [x, y, z] を返す(double[])。' },
+  { name: 'getHeight', params: ['split', 'index'], doc: '分割位置の高さを返す(double)。' },
+  { name: 'getYaw', params: ['split', 'index'], doc: '分割位置のヨー(度)を返す(float)。' },
+  { name: 'getPitch', params: ['split', 'index'], doc: '分割位置のピッチ(度)を返す(float)。' },
+  { name: 'getRoll', params: ['split', 'index'], doc: '分割位置のロール(度)を返す(float)。' },
 ];
 
 // Rhino / Nashorn の組込み関数。
