@@ -59,6 +59,8 @@ RTM らしい `.js` を開くと、自動で **「RTM Script」言語モード**
 | 入力中の状況 | 出る候補 |
 |---|---|
 | `importPackage(Packages.jp.ngt.rtm.` | パッケージ階層 + クラス名 |
+| `jp.ngt.rtm.render.` (Packages. 無し / 文字列内でもOK) | パッケージ階層 + クラス名 |
+| `var renderClass = "` | 描画クラス(`VehiclePartsRenderer` 等)の FQN |
 | `new Pa` | クラス名(`Parts` など) |
 | `renderer.` | `VehiclePartsRenderer` のメソッド(`registerParts` など)+ 全メソッド + 難読メソッド |
 | `entity.` | `EntityTrainBase` / `EntityVehicleBase` のメソッド + 難読メソッド |

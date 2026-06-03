@@ -96,6 +96,16 @@ ok('local var inference: s.getResourceName',
 const twoStep = resolveType('ItemWithModel.getModelState(stack).getDataMap()', api1122, '', 0);
 ok('two-step chain resolves to DataMap', twoStep.length > 0 && twoStep[0].name === 'DataMap');
 
+// ---- パッケージ/FQN 補完(Packages. 無しでも出る) ----
+ok('analyze: bare jp.ngt path -> package', analyze('x = jp.ngt.rtm.render.').type === 'package');
+ok('analyze: renderClass empty -> renderClass', analyze('var renderClass = "').type === 'renderClass');
+ok('analyze: renderClass path -> renderClass', analyze('var renderClass = "jp.ngt.rtm.render.Veh').type === 'renderClass');
+ok('analyze: member still works', analyze('entity.getSp').type === 'member');
+ok('bare jp.ngt.rtm.render. lists classes', count('x = jp.ngt.rtm.render.') > 5);
+const rcItems = prov.provideCompletionItems(mockDoc('var renderClass = "'), { line: 0, character: 'var renderClass = "'.length }).items;
+ok('renderClass suggests renderer FQNs',
+  rcItems.length > 5 && rcItems.every(i => /^jp\.ngt\.rtm\.render\..*Renderer$/.test(i.label)));
+
 // ---- 知識レイヤー強化(GL11 / renderClass / 継承 / 難読意味 / signature) ----
 const { detectRenderClass } = require('../src/completion');
 ok('detectRenderClass reads var renderClass',

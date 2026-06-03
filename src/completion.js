@@ -181,13 +181,25 @@ function findLastAssignment(docText, ident) {
   return last ? last.trim() : null;
 }
 
+// 補完で扱うトップレベルパッケージ(これで始まる .区切りは「パッケージ/クラスのパス」とみなす)
+const ROOT_PKG = /(?:^|[^\w.$"'])((?:jp|net|org|java|javax)(?:\.[A-Za-z_$][\w$]*)*\.?)$/;
+
 // ---- 状況判定 ---------------------------------------------------------------
 function analyze(linePrefix) {
-  let m = linePrefix.match(/(?:importPackage\s*\(\s*)?Packages\.([\w.]*)$/);
+  // var renderClass = "..." の文字列内 → 描画クラスの FQN を補完
+  let m = linePrefix.match(/renderClass\s*=\s*["']([\w.]*)$/);
+  if (m) return { type: 'renderClass', raw: m[1] };
+
+  // importPackage(Packages.xxx / Packages.xxx
+  m = linePrefix.match(/(?:importPackage\s*\(\s*)?Packages\.([\w.]*)$/);
   if (m) return { type: 'package', raw: m[1] };
 
   m = linePrefix.match(/\bnew\s+([\w$]*)$/);
   if (m) return { type: 'new', prefix: m[1] };
+
+  // Packages. が無くても jp.ngt... のような FQN を直接打っているとき(文字列内含む)
+  m = linePrefix.match(ROOT_PKG);
+  if (m) return { type: 'package', raw: m[1] };
 
   // メンバアクセス: 末尾が <式>.<部分メンバ名>
   m = linePrefix.match(/^(.*)\.([A-Za-z_$][\w$]*)?$/);
@@ -208,6 +220,18 @@ function buildPackageCompletions(api, raw) {
   const items = [];
   for (const child of node.children) items.push(makeItem(child, CK.Module, 'package', null, child, '0'));
   for (const cls of node.classes) items.push(makeItem(cls, CK.Class, base + '.' + cls, null, cls, '1'));
+  return items;
+}
+
+// var renderClass = "..." 用: 描画クラスの FQN 一覧(全文を挿入)。range は呼び出し側で設定。
+function buildRenderClassCompletions(api) {
+  const items = [];
+  for (const fqn of Object.keys(api.classesByFqn)) {
+    if (!/^jp\.ngt\.rtm\.render\.[A-Za-z0-9_]*Renderer$/.test(fqn)) continue;
+    const it = makeItem(fqn, CK.Class, 'renderClass', '描画スクリプトの renderClass に指定するクラス', fqn, '0');
+    it.filterText = fqn;
+    items.push(it);
+  }
   return items;
 }
 
@@ -317,6 +341,17 @@ function createProvider(state, shouldActivate) {
 
       let items = [];
       switch (ctx.type) {
+        case 'renderClass': {
+          items = buildRenderClassCompletions(api);
+          // 文字列内に打った部分を丸ごと FQN で置き換える(重複を防ぐ)
+          const qm = linePrefix.match(/(["'])([\w.]*)$/);
+          if (qm) {
+            const startCh = position.character - qm[2].length;
+            const range = new vscode.Range(position.line, startCh, position.line, position.character);
+            for (const it of items) it.range = range;
+          }
+          break;
+        }
         case 'package':
           items = buildPackageCompletions(api, ctx.raw);
           break;
