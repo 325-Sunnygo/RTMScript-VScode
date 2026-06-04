@@ -47,6 +47,21 @@ ok('new completions', count('new ') > 100);
 ok('member completions', count('renderer.') > 5);
 ok('ident completions', count('var x = re') > 100);
 
+// 型が解決できたら「その型のメンバーだけ」= 無関係な型のメソッドを混ぜない
+function labelsFor(line) {
+  const r = prov.provideCompletionItems(mockDoc(line), { line: 0, character: line.length });
+  return (r ? r.items : []).map(i => i.label);
+}
+const rendererLabels = labelsFor('renderer.');
+ok('renderer. is focused (not the whole cross-pool)', rendererLabels.length > 5 && rendererLabels.length < 300);
+ok('renderer. excludes unrelated method (getModelState)', !rendererLabels.includes('getModelState'));
+ok('renderer. includes its own method (registerParts)', rendererLabels.includes('registerParts'));
+// Entity 系は難読フィールドも残す
+const entityLabels = labelsFor('entity.');
+ok('entity. keeps obf field field_70177_z', entityLabels.includes('field_70177_z'));
+// 型不明のレシーバはフォールバックで横断プールが出る
+ok('unresolved receiver falls back to cross-pool', count('zzz123.') > 300);
+
 // Tab確定で「名前だけ」挿入される(構文の塊を展開しない)ことを確認
 function itemsFor(line) {
   const r = prov.provideCompletionItems(mockDoc(line), { line: 0, character: line.length });

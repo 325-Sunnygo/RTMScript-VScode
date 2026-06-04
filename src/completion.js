@@ -251,7 +251,8 @@ function obfMeaning(version, name) {
   return version === '1.12.2' ? (OBF_MEANING_1122[name] || null) : null;
 }
 
-// 解決済みクラス配列を優先表示しつつ、横断プール + 難読をフォールバックで付ける
+// レシーバの型が解決できたら「その型のメンバーだけ」を出す(無関係な型のメソッドは混ぜない)。
+// 型が解決できないときだけ、横断プール + 難読をフォールバックで出す。
 function buildMemberCompletions(api, resolvedClasses, version) {
   const items = [];
   const seen = new Set();
@@ -261,9 +262,11 @@ function buildMemberCompletions(api, resolvedClasses, version) {
     items.push(makeItem(label, kind, detail, doc, label, sort));
   };
 
-  // 1) 型が解決できたクラスのメンバー(最優先)
-  for (const c of resolvedClasses) {
-    if (!c) continue;
+  const classes = (resolvedClasses || []).filter(Boolean);
+  const resolved = classes.length > 0;
+
+  // 1) 型が解決できたクラスのメンバー
+  for (const c of classes) {
     for (const m of c.methods || []) {
       const mean = obfMeaning(version, m.name);
       add(m.name, CK.Method, mean ? mean : methodSignature(m), '`' + c.name + '` のメソッド', '0');
@@ -274,14 +277,30 @@ function buildMemberCompletions(api, resolvedClasses, version) {
     }
   }
 
-  // 2) 横断プール(前方一致で絞られる)
+  if (resolved) {
+    // Entity 系だけは難読フィールド/メソッド(field_70177_z=rotationYaw 等)も実際に使うので足す。
+    // それ以外の型は、無関係なメソッドを混ぜないため「その型のメンバーのみ」で終える。
+    const isEntity = classes.some(c => /Entity/.test(c.name));
+    if (isEntity) {
+      for (const fm of api.obfMethods) {
+        const mean = obfMeaning(version, fm);
+        const owners = api.memberOwners[fm];
+        add(fm, CK.Method, mean ? mean : '難読メソッド', owners ? '使用箇所: ' + owners.slice(0, 4).join(', ') : null, '7');
+      }
+      for (const ff of api.obfFields) {
+        const mean = obfMeaning(version, ff);
+        add(ff, CK.Field, mean ? mean : '難読フィールド', null, '8');
+      }
+    }
+    return items;
+  }
+
+  // 2) 型が不明なときのフォールバック: 横断プール + 難読(前方一致で絞られる)
   for (const [name, e] of api.memberPool) {
     const mean = obfMeaning(version, name);
     if (e.kind === 'method') add(name, CK.Method, mean ? mean : methodSignature(e), '所属: ' + e.owners.slice(0, 4).join(', '), '5');
     else add(name, CK.Field, mean ? mean : (name + ': ' + (e.type || '')), '所属: ' + e.owners.slice(0, 4).join(', '), '6');
   }
-
-  // 3) 難読メソッド/フィールド(意味が分かるものは detail に表示)
   for (const fm of api.obfMethods) {
     const mean = obfMeaning(version, fm);
     const owners = api.memberOwners[fm];
